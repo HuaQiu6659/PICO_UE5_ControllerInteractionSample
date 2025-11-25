@@ -141,7 +141,6 @@ private:
         }
         socket->SetNonBlocking(true);
         socket->SetReuseAddr(true);
-        socket->SetNoDelay(true);
 
         // 发起连接并在更长的时间窗口内轮询状态（避免误判慢网络为失败）
         // 注意：非阻塞 connect 返回 false 并不一定是错误，常见为“正在握手”(EWOULDBLOCK/EINPROGRESS)
@@ -377,11 +376,12 @@ private:
     // 在游戏线程广播消息
     void BroadcastMessage(const FString& msg)
     {
-        if (!owner)
-            return;
-
-        AsyncTask(ENamedThreads::GameThread, [o = owner, msg]
+        if (!owner) return;
+        TWeakObjectPtr<AConnector> weakOwner(owner);
+        AsyncTask(ENamedThreads::GameThread, [weakOwner, msg]
         {
+            AConnector* o = weakOwner.Get();
+            if (!o || !IsValid(o)) return;
             o->onMessageReceived.Broadcast(msg);
         });
     }
@@ -389,12 +389,12 @@ private:
     // 在游戏线程广播状态变化
     void BroadcastState(ESocketState state)
     {
-        if (!owner)
+        if (!owner) return;
+        TWeakObjectPtr<AConnector> weakOwner(owner);
+        AsyncTask(ENamedThreads::GameThread, [weakOwner, state]
         {
-            return;
-        }
-        AsyncTask(ENamedThreads::GameThread, [o = owner, state]
-        {
+            AConnector* o = weakOwner.Get();
+            if (!o || !IsValid(o)) return;
             o->onConnectorStateChanged.Broadcast(state);
         });
     }
@@ -402,10 +402,12 @@ private:
     // 在游戏线程广播错误原因
     void BroadcastError(const FString& reason)
     {
-        if (!owner)
-            return;
-        AsyncTask(ENamedThreads::GameThread, [o = owner, reason]
+        if (!owner) return;
+        TWeakObjectPtr<AConnector> weakOwner(owner);
+        AsyncTask(ENamedThreads::GameThread, [weakOwner, reason]
         {
+            AConnector* o = weakOwner.Get();
+            if (!o || !IsValid(o)) return;
             o->onConnectorError.Broadcast(reason);
         });
     }

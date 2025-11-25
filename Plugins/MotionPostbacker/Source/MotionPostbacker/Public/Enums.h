@@ -30,5 +30,6 @@ enum class EMotionType : uint8 {
 UENUM(BlueprintType)
 enum class EMessageType : uint8 {
 	AnalysisResult,
-	Message
+	Message,
+	Json
 };

@@ -68,34 +68,78 @@ static void StripNonJsonPrefix(FString& buffer)
 {
     buffer.TrimStartInline();
     const int32 startBrace = buffer.Find(TEXT("{"));
+
     if (startBrace == INDEX_NONE)
-    {
-        // 没有 '{'，保留少量噪声等待下一次数据；避免无限增长
-        if (buffer.Len() > 4096) buffer.Reset();
         return;
-    }
-    if (startBrace > 0) buffer.RemoveAt(0, startBrace);
+
+    if (startBrace > 0) 
+        buffer.RemoveAt(0, startBrace);
 }
 
 static bool ExtractNextJsonObject(FString& buffer, FString& outObject)
 {
-    // 基于换行符 '\n' 的分包重组，兼容 CRLF。若无完整行则等待后续数据。
-    const int32 newlineIndex = buffer.Find(TEXT("\n"));
-    if (newlineIndex == INDEX_NONE) return false;
-
-    outObject = buffer.Left(newlineIndex);
-    buffer.RemoveAt(0, newlineIndex + 1);
-
-    // 去除 Windows 风格结尾的 '\r'
-    if (outObject.Len() > 0 && outObject[outObject.Len() - 1] == '\r')
-        outObject.RemoveAt(outObject.Len() - 1);
-
-    // 兼容可能存在的前置噪声/BOM，保留此前的前缀清理逻辑
-    StripNonJsonPrefix(outObject);
-
-    outObject.TrimStartAndEndInline();
+    // 统一前置清理：去除前导空白与 BOM，避免误判
     buffer.TrimStartInline();
-    return !outObject.IsEmpty();
+    while (buffer.Len() > 0 && buffer[0] == 0xFEFF) 
+        buffer.RemoveAt(0);
+
+    // 1) 优先按换行符 '\n' 拆包（兼容 CRLF）
+    const int32 newlineIndex = buffer.Find(TEXT("\n"));
+    if (newlineIndex != INDEX_NONE)
+    {
+        FString line = buffer.Left(newlineIndex);
+        buffer.RemoveAt(0, newlineIndex + 1);
+
+        // 去除 Windows 风格结尾的 '\r'
+        if (line.Len() > 0 && line[line.Len() - 1] == '\r')
+            line.RemoveAt(line.Len() - 1);
+
+        outObject = line;
+
+        // 兼容可能存在的前置噪声/BOM
+        StripNonJsonPrefix(outObject);
+
+        outObject.TrimStartAndEndInline();
+        buffer.TrimStartInline();
+
+        // 若该行包含 JSON 以及后续噪声，按花括号配平截取纯 JSON 片段，避免误判为非法
+        const int32 startBrace = outObject.Find(TEXT("{"));
+        if (startBrace != INDEX_NONE)
+        {
+            const int32 endBrace = FindJsonObjectEnd(outObject, startBrace);
+            if (endBrace != INDEX_NONE)
+                outObject = outObject.Mid(startBrace, endBrace - startBrace + 1);
+        }
+
+        // 已消费一行；让上层继续处理后续行；若本行为空包将被上层跳过
+        return true;
+    }
+
+    // 2) 无换行时，尝试直接按花括号配平从缓冲区提取一个完整 JSON
+    const int32 startBraceInBuffer = buffer.Find(TEXT("{"));
+    if (startBraceInBuffer == INDEX_NONE)
+        return false;
+
+    const int32 endBraceInBuffer = FindJsonObjectEnd(buffer, startBraceInBuffer);
+    if (endBraceInBuffer == INDEX_NONE) 
+        return false; // 尚未收到完整对象，继续等待后续数据
+
+    outObject = buffer.Mid(startBraceInBuffer, endBraceInBuffer - startBraceInBuffer + 1);
+
+    // 删除本 JSON 后的同一行噪声：若有换行符，直接去到下一行开始；否则仅去到 JSON 末尾
+    int32 postNewlineIndex = INDEX_NONE;
+    {
+        const FString tail = buffer.Mid(endBraceInBuffer + 1);
+        const int32 localNewline = tail.Find(TEXT("\n"));
+        if (localNewline != INDEX_NONE) postNewlineIndex = endBraceInBuffer + 1 + localNewline;
+    }
+    if (postNewlineIndex != INDEX_NONE)
+        buffer.RemoveAt(0, postNewlineIndex + 1);
+    else
+        buffer.RemoveAt(0, endBraceInBuffer + 1);
+
+    buffer.TrimStartInline();
+    return true;
 }
 
 void UCommandResolver::Resolve(const FString& json)
@@ -106,6 +150,9 @@ void UCommandResolver::Resolve(const FString& json)
     FString packet;
     while (ExtractNextJsonObject(recvBuffer, packet))
     {
+        //FString jsonText = FString::Printf(TEXT("originalLength=%d, packetLength=%d"), json.Len(), packet.Len());
+        //GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Cyan, jsonText);
+
         packet.TrimStartAndEndInline();
 
         if (packet.IsEmpty()) 
@@ -114,17 +161,16 @@ void UCommandResolver::Resolve(const FString& json)
         ResolveOne(packet);
     }
 
-    // 缓冲区过大（异常数据或服务端错误）时清空并提醒
-    if (recvBuffer.Len() > 1 * 1024 * 1024)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Resolve: 缓冲区超过 1MB，疑似异常数据，清空缓冲。"));
+    // 无意义字符串, 不是粘包
+    if (recvBuffer.Find(TEXT("{")) == INDEX_NONE)
         recvBuffer.Reset();
-    }
 }
 
 // 处理单条 JSON 指令
 void UCommandResolver::ResolveOne(const FString& json)
 {
+    onMessageUpdate.Broadcast(json, EMessageType::Json);
+
     TSharedPtr<FJsonObject> jsonObject;
     TSharedRef<TJsonReader<TCHAR>> reader = TJsonReaderFactory<TCHAR>::Create(json);
     if (!FJsonSerializer::Deserialize(reader, jsonObject) || !jsonObject.IsValid())
@@ -264,14 +310,14 @@ void UCommandResolver::OnTrajectoryAnalysis_Result(const TSharedPtr<FJsonObject>
         const TSharedPtr<FJsonObject>* summaryPtr = nullptr;
         if (data->TryGetObjectField(TEXT("summary"), summaryPtr) && summaryPtr && summaryPtr->IsValid())
         {
-            const bool is1cmFromInjurySite = (*summaryPtr)->HasField(TEXT("is1cmFromInjurySite")) ? (*summaryPtr)->GetBoolField(TEXT("is1cmFromInjurySite")) : false;
+            const bool is10cmFromInjurySite = (*summaryPtr)->HasField(TEXT("is10cmFromInjurySite")) ? (*summaryPtr)->GetBoolField(TEXT("is10cmFromInjurySite")) : false;
             const bool isSpiral = (*summaryPtr)->HasField(TEXT("isSpiral")) ? (*summaryPtr)->GetBoolField(TEXT("isSpiral")) : false;
             const bool isInOrder = (*summaryPtr)->HasField(TEXT("isInOrder")) ? (*summaryPtr)->GetBoolField(TEXT("isInOrder")) : false;
             const double sphereDiameter = (*summaryPtr)->HasField(TEXT("sphereDiameter")) ? (*summaryPtr)->GetNumberField(TEXT("sphereDiameter")) : 0.0;
             const double score = (*summaryPtr)->HasField(TEXT("score")) ? (*summaryPtr)->GetNumberField(TEXT("score")) : 0.0;
             
             FString result = FString::Printf(TEXT("避开穿刺点1cm: %s\n螺旋式消毒: %s\n方向和顺序: %s\n消毒直径: %.2f米\n得分: %.2f"),
-                is1cmFromInjurySite ? TEXT("是") : TEXT("否"),
+                is10cmFromInjurySite ? TEXT("是") : TEXT("否"),
                 isSpiral ? TEXT("是") : TEXT("否"),
                 isInOrder ? TEXT("是") : TEXT("否"),
                 sphereDiameter, score);
@@ -500,14 +546,16 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Result(const TSharedPtr<FJsonO
         const TSharedPtr<FJsonObject>* summaryPtr = nullptr;
         if (data->TryGetObjectField(TEXT("summary"), summaryPtr) && summaryPtr && summaryPtr->IsValid())
         {
-            const bool is1cmFromInjurySite = (*summaryPtr)->HasField(TEXT("is1cmFromInjurySite")) ? (*summaryPtr)->GetBoolField(TEXT("is1cmFromInjurySite")) : false;
+            const bool is10cmFromInjurySite = (*summaryPtr)->HasField(TEXT("is10cmFromInjurySite")) ? (*summaryPtr)->GetBoolField(TEXT("is10cmFromInjurySite")) : false;
             const bool isZ = (*summaryPtr)->HasField(TEXT("isZ")) ? (*summaryPtr)->GetBoolField(TEXT("isZ")) : false;
+            const bool isClose = (*summaryPtr)->HasField(TEXT("isClose")) ? (*summaryPtr)->GetBoolField(TEXT("isClose")) : false;
             const bool isInOrder = (*summaryPtr)->HasField(TEXT("isInOrder")) ? (*summaryPtr)->GetBoolField(TEXT("isInOrder")) : false;
             const double scoreNum = (*summaryPtr)->HasField(TEXT("score")) ? (*summaryPtr)->GetNumberField(TEXT("score")) : 0.0;
 
-            const FString result = FString::Printf(TEXT("避开穿刺点1cm: %s\nZ形消毒: %s\n方向和顺序: %s\n得分: %.0f，满分100"),
-                is1cmFromInjurySite ? TEXT("是") : TEXT("否"),
+            const FString result = FString::Printf(TEXT("避开穿刺点10cm: %s\nZ形消毒: %s\n外向内: %s\n方向和顺序: %s\n得分: %.0f，满分100"),
+                is10cmFromInjurySite ? TEXT("是") : TEXT("否"),
                 isZ ? TEXT("是") : TEXT("否"),
+                isClose ? TEXT("是") : TEXT("否"),
                 isInOrder ? TEXT("是") : TEXT("否"),
                 scoreNum);
 
