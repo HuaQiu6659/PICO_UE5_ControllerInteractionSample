@@ -8,6 +8,7 @@
 #include "Misc/ScopeLock.h"
 #include "Async/Async.h"
 #include "Logging/LogMacros.h"
+#include "Misc/CoreDelegates.h"
 
 // 本文件内使用的日志分类
 DEFINE_LOG_CATEGORY_STATIC(LogSocketConnections, Log, All);
@@ -439,6 +440,11 @@ AConnector::AConnector()
 void AConnector::BeginPlay()
 {
     Super::BeginPlay();
+
+    // 注册应用前后台事件，适配安卓熄屏/亮屏导致的网络断开
+    // UE5 的 CoreDelegates 成员以 *Delegate 结尾，需使用正确的名称
+    bgHandle = FCoreDelegates::ApplicationWillEnterBackgroundDelegate.AddUObject(this, &AConnector::OnAppBackground);
+    fgHandle = FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddUObject(this, &AConnector::OnAppForeground);
 }
 
 void AConnector::Tick(float DeltaTime)
@@ -499,5 +505,22 @@ void AConnector::Stop()
 bool AConnector::IsConnected() const
 {
     return worker && worker->IsConnected();
+}
+
+void AConnector::OnAppBackground()
+{
+    // 安卓熄屏或进入后台：主动停止连接，释放资源，避免系统挂起导致线程/Socket异常
+    UE_LOG(LogSocketConnections, Log, TEXT("[SocketConnections] App goes to background, stopping connection"));
+    Stop();
+}
+
+void AConnector::OnAppForeground()
+{
+    // 回到前台：若有历史连接参数，自动尝试重连（TCP/UDP均可）
+    UE_LOG(LogSocketConnections, Log, TEXT("[SocketConnections] App returns to foreground, auto reconnect if params exist"));
+    if (!connectAddress.IsEmpty() && connectPort > 0)
+    {
+        TryConnectServer(connectAddress, connectPort, useUdp);
+    }
 }
 

@@ -25,7 +25,7 @@ FString UCommandBuilder::GlobalConfigCommand(const FString& clipperSn, const FSt
 	TSharedPtr<FJsonObject> root = MakeShareable(new FJsonObject());
 	root->SetStringField(TEXT("cmd"), TEXT("rescueAppConfig"));
 	root->SetNumberField(TEXT("fps"), 60);
-	root->SetNumberField(TEXT("engine"), 1);	// Unity是0   UE是1
+	root->SetNumberField(TEXT("engine"), 0);	// Unity是0   UE是1
 	root->SetStringField(TEXT("asepticClipper"), clipperSn);
 	root->SetStringField(TEXT("dummy"), dummySn);
 

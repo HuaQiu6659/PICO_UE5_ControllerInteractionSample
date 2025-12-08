@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Delegates/Delegate.h"
 #include "Connector.generated.h"
 
 // 连接状态枚举：用于通过委托通知上层连接状态改变
@@ -70,16 +71,28 @@ public:
 	bool IsConnected() const;
 
 private:
-	// 线程对象与工作者，用于后台接收数据；注意只在主线程创建与销毁
-	class FSocketWorker* worker;
-	class FRunnableThread* thread;
+    // 线程对象与工作者，用于后台接收数据；注意只在主线程创建与销毁
+    class FSocketWorker* worker;
+    class FRunnableThread* thread;
 
 	// 连接参数（最新一次调用 TryConnectServer 设置）
 	FString connectAddress;
 	int32 connectPort;
 	bool useUdp;
 
-	// 发送互斥，保护 socket 发送并发
-	FCriticalSection sendMutex;
+    // 发送互斥，保护 socket 发送并发
+    FCriticalSection sendMutex;
+
+    // 应用前后台事件句柄：用于安卓熄屏/亮屏自动断开与重连
+    FDelegateHandle bgHandle;
+    FDelegateHandle fgHandle;
+
+    // 应用进入后台时立即停止连接以避免系统回收资源导致悬空
+    UFUNCTION()
+    void OnAppBackground();
+
+    // 应用回到前台后自动按上次参数重连（若存在参数）
+    UFUNCTION()
+    void OnAppForeground();
 
 };
