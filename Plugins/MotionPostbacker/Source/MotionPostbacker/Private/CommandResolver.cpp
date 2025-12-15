@@ -359,7 +359,8 @@ void UCommandResolver::OnCprAnalysis(const TSharedPtr<FJsonObject>& json)
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
-    FString action; (*dataPtr)->TryGetStringField(TEXT("action"), action);
+    FString action; 
+    (*dataPtr)->TryGetStringField(TEXT("action"), action);
 
     if (code == SUCCESS_CODE)
     {
@@ -369,6 +370,12 @@ void UCommandResolver::OnCprAnalysis(const TSharedPtr<FJsonObject>& json)
             OnCprAnalysis_End(json);
         else if (action.Equals(TEXT("result"), ESearchCase::IgnoreCase))
             OnCprAnalysis_Result(json);
+        else if (action.Equals(TEXT("frameComparison"), ESearchCase::IgnoreCase))
+            OnCprAnalysis_FrameComparsion(json);
+        else if (action.Equals(TEXT("motions"), ESearchCase::IgnoreCase))
+            OnCprAnalysis_Motions(json);
+        else if (action.Equals(TEXT("motionsConfirm"), ESearchCase::IgnoreCase))
+            OnCprAnalysis_MotionsConfirm(json);
         else
         {
             const FString warn = FString::Printf(TEXT("CPR, 未知子指令: %s"), *action);
@@ -456,6 +463,112 @@ void UCommandResolver::OnCprAnalysis_Result(const TSharedPtr<FJsonObject>& json)
         UE_LOG(LogTemp, Log, TEXT("CPR 分析\n 未完成"));
         onMessageUpdate.Broadcast(TEXT("CPR 分析\n 未完成"), EMessageType::Message);
     }
+}
+
+void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObject>& json)
+{
+    const TSharedPtr<FJsonObject>* dataPtr = nullptr;
+    if (!json->TryGetObjectField(TEXT("data"), dataPtr) || !(dataPtr && dataPtr->IsValid()))
+    {
+        const FString warn = TEXT("CPR: data 字段缺失或非法");
+        UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        onMessageUpdate.Broadcast(warn, EMessageType::Message);
+        return;
+    }
+
+    // 为false时才有对比数据
+    const TSharedPtr<FJsonObject> data = *dataPtr;
+    const bool isFinish = data->HasField(TEXT("isFinish")) ? data->GetBoolField(TEXT("isFinish")) : false;
+    if (isFinish)
+    {
+        UE_LOG(LogTemp, Log, TEXT("CPR 帧对比: 已完成，无实时对比数据"));
+        onMessageUpdate.Broadcast(TEXT("CPR 帧对比: 已完成，无实时对比数据"), EMessageType::Message);
+        return;
+    }
+
+    const TSharedPtr<FJsonObject>* comparisonPtr = nullptr;
+    if (!data->TryGetObjectField(TEXT("comparisonResult"), comparisonPtr) || !(comparisonPtr && comparisonPtr->IsValid()))
+    {
+        const FString warn = TEXT("CPR 帧对比: comparisonResult 缺失或非法");
+        UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        onMessageUpdate.Broadcast(warn, EMessageType::Message);
+        return;
+    }
+
+    const TSharedPtr<FJsonObject> comp = *comparisonPtr;
+    int32 tplFrameNo = 0; comp->TryGetNumberField(TEXT("tplFrameNo"), tplFrameNo);
+    int32 motionFrameNo = 0; comp->TryGetNumberField(TEXT("motionFrameNo"), motionFrameNo);
+    double score = 0.0; comp->TryGetNumberField(TEXT("score"), score);
+
+    FString bonesSummary;
+    const TArray<TSharedPtr<FJsonValue>>* bonesPtr = nullptr;
+    if (comp->TryGetArrayField(TEXT("bones"), bonesPtr) && bonesPtr)
+    {
+        for (int32 i = 0; i < bonesPtr->Num(); ++i)
+        {
+            const TSharedPtr<FJsonValue>& v = (*bonesPtr)[i];
+            if (!v.IsValid() || v->Type != EJson::Object) 
+                continue;
+            const TSharedPtr<FJsonObject> b = v->AsObject();
+
+            FString boneName;
+            if (!b->TryGetStringField(TEXT("name"), boneName))
+                b->TryGetStringField(TEXT("bone"), boneName);
+
+            double similarity = 0.0; b->TryGetNumberField(TEXT("similarity"), similarity);
+            double weight = 0.0; b->TryGetNumberField(TEXT("weight"), weight);
+
+            const FString one = FString::Printf(TEXT("%s: 相似度=%.2f, 权重=%.2f"), *boneName, similarity, weight);
+            if (!bonesSummary.IsEmpty()) bonesSummary.Append(TEXT("\n"));
+            bonesSummary.Append(one);
+        }
+    }
+
+    const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.0f\n%s"), tplFrameNo, motionFrameNo, score, *bonesSummary);
+    UE_LOG(LogTemp, Log, TEXT("%s"), *result);
+    onMessageUpdate.Broadcast(result, EMessageType::Message);
+}
+
+void UCommandResolver::OnCprAnalysis_Motions(const TSharedPtr<FJsonObject>& json)
+{
+    const TSharedPtr<FJsonObject>* dataPtr = nullptr;
+    if (!json->TryGetObjectField(TEXT("data"), dataPtr) || !(dataPtr && dataPtr->IsValid()))
+    {
+        const FString warn = TEXT("CPR 回放: data 字段缺失或非法");
+        UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        onMessageUpdate.Broadcast(warn, EMessageType::Message);
+        return;
+    }
+
+    const TSharedPtr<FJsonObject> data = *dataPtr;
+    FString bizId; data->TryGetStringField(TEXT("bizId"), bizId);
+    const bool isFinish = data->HasField(TEXT("isFinish")) ? data->GetBoolField(TEXT("isFinish")) : false;
+    bool isEnd = false; data->TryGetBoolField(TEXT("isEnd"), isEnd);
+    int32 fps = 0; data->TryGetNumberField(TEXT("fps"), fps);
+    int32 totalFrames = 0; data->TryGetNumberField(TEXT("totalFrames"), totalFrames);
+
+    const TArray<TSharedPtr<FJsonValue>>* motionListPtr = nullptr;
+    if (data->TryGetArrayField(TEXT("motionList"), motionListPtr) && motionListPtr)
+    {
+        // TODO: 骨骼数据解析??
+    }
+}
+
+void UCommandResolver::OnCprAnalysis_MotionsConfirm(const TSharedPtr<FJsonObject>& json)
+{
+    const TSharedPtr<FJsonObject>* dataPtr = nullptr;
+    if (!json->TryGetObjectField(TEXT("data"), dataPtr) || !(dataPtr && dataPtr->IsValid()))
+    {
+        const FString warn = TEXT("CPR 回放确认: data 字段缺失或非法");
+        UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        onMessageUpdate.Broadcast(warn, EMessageType::Message);
+        return;
+    }
+
+    FString bizId; (*dataPtr)->TryGetStringField(TEXT("bizId"), bizId);
+    const FString info = FString::Printf(TEXT("CPR 回放确认\nbizId=%s"), *bizId);
+    UE_LOG(LogTemp, Log, TEXT("%s"), *info);
+    onMessageUpdate.Broadcast(info, EMessageType::Message);
 }
 
 // -------------------------- ZShape --------------------------

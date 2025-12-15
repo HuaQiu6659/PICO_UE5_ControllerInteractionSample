@@ -42,33 +42,33 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	// 当收到服务端消息时广播（已在游戏线程触发，安全可用于 UI）
+	// 当收到服务端消息时广播
 	UPROPERTY(BlueprintAssignable)
-	FOnMessageReceived onMessageReceived;
+		FOnMessageReceived onMessageReceived;
 
-	// 当连接状态变化时广播（已在游戏线程触发）
+	// 当连接状态变化时广播
 	UPROPERTY(BlueprintAssignable)
-	FOnConnectorStateChanged onConnectorStateChanged;
+		FOnConnectorStateChanged onConnectorStateChanged;
 
-	// 当遇到错误时广播（蓝图可绑定），会携带错误原因字符串
+	// 当遇到错误时广播
 	UPROPERTY(BlueprintAssignable)
-	FOnConnectorError onConnectorError;
+		FOnConnectorError onConnectorError;
 
-	// 尝试连接到服务端（可在蓝图调用）。address 示例："127.0.0.1"，端口范围 1-65535
+	// 尝试连接到服务端
 	UFUNCTION(BlueprintCallable, Category="SocketConnections")
-	void TryConnectServer(const FString& address, int32 port, bool useUdp);
+		void TryConnectServer(const FString& address, int32 port, bool useUdp);
 
-	// 发送字符串到服务端（可在蓝图调用）。返回是否发送成功
+	// 发送字符串到服务端 返回是否发送成功
 	UFUNCTION(BlueprintCallable, Category="SocketConnections")
-	bool SendString(const FString& message);
+		bool SendString(const FString& message);
 
-	// 停止并释放连接资源（可在蓝图调用）
+	// 停止并释放连接资源
 	UFUNCTION(BlueprintCallable, Category="SocketConnections")
-	void Stop();
+		void Stop();
 
-	// 查询当前是否已连接（可在蓝图查询）
+	// 查询当前是否已连接
 	UFUNCTION(BlueprintPure, Category="SocketConnections")
-	bool IsConnected() const;
+		bool IsConnected() const;
 
 private:
     // 线程对象与工作者，用于后台接收数据；注意只在主线程创建与销毁

@@ -256,3 +256,83 @@ FString UCommandBuilder::TrackerDatas(const TArray<FTrackerData>& trackers)
     CleanJson(outJson);
     return outJson;
 }
+
+FString UCommandBuilder::CprMotionsCommand()
+{
+    FString outJson;
+    UCommandResolver* resolver = UCommandResolver::GetResolver();
+    FString bizId;
+    if (resolver == nullptr)
+    {
+#if WITH_EDITOR
+        bizId = FString::Printf(TEXT("EditorTest"));
+#else
+        return outJson;
+#endif
+    }
+    else
+    {
+        bizId = resolver->GetBizId();
+    }
+
+    if (bizId.IsEmpty())
+    {
+        if (resolver)
+            resolver->onMessageUpdate.Broadcast(TEXT("未开始分析(bizId为空)\n因此无法请求CPR动作数据回放"), EMessageType::Message);
+#if WITH_EDITOR
+        bizId = FString::Printf(TEXT("EditorTest"));
+#else
+        return outJson;
+#endif
+    }
+
+    TSharedPtr<FJsonObject> root = MakeShareable(new FJsonObject());
+    root->SetStringField(TEXT("cmd"), TEXT("cprAnalysis"));
+    root->SetStringField(TEXT("action"), TEXT("motions"));
+    root->SetStringField(TEXT("bizId"), bizId);
+
+    TSharedRef<TJsonWriter<>> writer = TJsonWriterFactory<>::Create(&outJson);
+    FJsonSerializer::Serialize(root.ToSharedRef(), writer);
+    CleanJson(outJson);
+    return outJson;
+}
+
+FString UCommandBuilder::CprMotionsConfirmCommand()
+{
+	FString outJson;
+	UCommandResolver* resolver = UCommandResolver::GetResolver();
+	FString bizId;
+	if (resolver == nullptr)
+	{
+#if WITH_EDITOR
+		bizId = FString::Printf(TEXT("EditorTest"));
+#else
+		return outJson;
+#endif
+	}
+	else
+	{
+		bizId = resolver->GetBizId();
+	}
+
+	if (bizId.IsEmpty())
+	{
+		if (resolver)
+			resolver->onMessageUpdate.Broadcast(TEXT("未开始分析(bizId为空)\n因此无法请求CPR动作数据回放"), EMessageType::Message);
+#if WITH_EDITOR
+		bizId = FString::Printf(TEXT("EditorTest"));
+#else
+		return outJson;
+#endif
+	}
+
+	TSharedPtr<FJsonObject> root = MakeShareable(new FJsonObject());
+	root->SetStringField(TEXT("cmd"), TEXT("cprAnalysis"));
+	root->SetStringField(TEXT("action"), TEXT("motionsConfirm"));
+	root->SetStringField(TEXT("bizId"), bizId);
+
+	TSharedRef<TJsonWriter<>> writer = TJsonWriterFactory<>::Create(&outJson);
+	FJsonSerializer::Serialize(root.ToSharedRef(), writer);
+	CleanJson(outJson);
+	return outJson;
+}

@@ -423,8 +423,8 @@ private:
     TSharedPtr<FInternetAddr> remoteAddr;
 
     FCriticalSection socketMutex;
-    FThreadSafeBool shouldStop;
-    FThreadSafeBool connected;
+    bool shouldStop;
+    bool connected;
 };
 
 // ===================== AConnector =====================

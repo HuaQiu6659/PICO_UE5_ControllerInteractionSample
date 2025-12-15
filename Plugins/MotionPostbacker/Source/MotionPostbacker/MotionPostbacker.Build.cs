@@ -31,8 +31,7 @@ public class MotionPostbacker : ModuleRules
                 "InputCore",
                 "Sockets",
                 "Networking",
-                "JsonUtilities",
-                "SocketConnections"
+                "JsonUtilities"
 				// ... add other public dependencies that you statically link with here ...
 			}
 			);

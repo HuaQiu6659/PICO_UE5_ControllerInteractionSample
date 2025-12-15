@@ -20,7 +20,7 @@ public:
 	/// <param name="dummySn"> 假人传感器 </param>
 	/// <returns> command Json </returns>
     UFUNCTION(BlueprintPure, Category = "CommandBuilder")
-    static FString GlobalConfigCommand(const FString& clipperSn, const FString& dummySn);
+		static FString GlobalConfigCommand(const FString& clipperSn, const FString& dummySn);
 
 	/// <summary>
 	/// 开始动作分析指令
@@ -28,7 +28,7 @@ public:
 	/// <param name="motionType"> Trajectory 或 Cpr </param>
 	/// <returns> command Json </returns>
     UFUNCTION(BlueprintPure, Category = "CommandBuilder")
-    static FString StartCommand(EMotionType motionType);
+		static FString StartCommand(EMotionType motionType);
 
 	/// <summary>
 	/// 结束动作分析指令
@@ -36,7 +36,7 @@ public:
 	/// <param name="motionType"> Trajectory 或 Cpr </param>
 	/// <returns> command Json </returns>
     UFUNCTION(BlueprintPure, Category = "CommandBuilder")
-    static FString EndCommand(EMotionType motionType);
+		static FString EndCommand(EMotionType motionType);
 
 	/// <summary>
 	/// 分析结果查询
@@ -44,7 +44,7 @@ public:
 	/// <param name="motionType"> Trajectory 或 Cpr </param>
 	/// <returns> command Json </returns>
     UFUNCTION(BlueprintPure, Category = "CommandBuilder")
-    static FString AnalysisCommand(EMotionType motionType);
+		static FString AnalysisCommand(EMotionType motionType);
 
 	/// <summary>
 	/// 追踪器数据上报（数组）
@@ -52,5 +52,19 @@ public:
 	/// <param name="trackers"> FTrackerData 数组 </param>
 	/// <returns> command Json </returns>
     UFUNCTION(BlueprintPure, Category = "CommandBuilder")
-    static FString TrackerDatas(const TArray<FTrackerData>& trackers);
+		static FString TrackerDatas(const TArray<FTrackerData>& trackers);
+
+	/// <summary>
+	/// CPR动作数据回放请求
+	/// </summary>
+	/// <returns></returns>
+	UFUNCTION(BlueprintPure, Category = "CommandBuilder")
+		static FString CprMotionsCommand();
+
+		/// <summary>
+		/// CPR动作数据回放请求
+		/// </summary>
+		/// <returns></returns>
+	UFUNCTION(BlueprintPure, Category = "CommandBuilder")
+		static FString CprMotionsConfirmCommand();
 };

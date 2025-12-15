@@ -39,6 +39,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Motion")
 		void SetAnalyzing(bool analyzing) { isAnalyzing = analyzing; }
+
 	EMotionType GetCurrentMode() { return currentMode; }
 	bool IsAnalyzing() { return isAnalyzing; }
 
@@ -49,6 +50,7 @@ private:
     FString recvBuffer;
 
     static const int32 SUCCESS_CODE = 1000;
+
     static UCommandResolver* Instance;
 
 	FCriticalSection idMapMutex;
@@ -70,6 +72,9 @@ private:
 	void OnCprAnalysis_Begin(const TSharedPtr<FJsonObject>& json);
 	void OnCprAnalysis_End(const TSharedPtr<FJsonObject>& json);
 	void OnCprAnalysis_Result(const TSharedPtr<FJsonObject>& json);
+	void OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObject>& json);
+	void OnCprAnalysis_Motions(const TSharedPtr<FJsonObject>& json);
+	void OnCprAnalysis_MotionsConfirm(const TSharedPtr<FJsonObject>& json);
 
 	// zshape
 	void OnZShapeTrajectoryAnalysis(const TSharedPtr<FJsonObject>& json);
