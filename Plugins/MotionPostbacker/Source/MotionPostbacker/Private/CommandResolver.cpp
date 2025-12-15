@@ -548,28 +548,24 @@ void UCommandResolver::OnCprAnalysis_Motions(const TSharedPtr<FJsonObject>& json
     int32 totalFrames = 0; data->TryGetNumberField(TEXT("totalFrames"), totalFrames);
 
     const TArray<TSharedPtr<FJsonValue>>* motionListPtr = nullptr;
+    FString motionListJson;
     if (data->TryGetArrayField(TEXT("motionList"), motionListPtr) && motionListPtr)
     {
-        // TODO: 骨骼数据解析??
+        TSharedRef<TJsonWriter<>> writer = TJsonWriterFactory<>::Create(&motionListJson);
+        FJsonSerializer::Serialize(*motionListPtr, writer);
     }
-}
-
-void UCommandResolver::OnCprAnalysis_MotionsConfirm(const TSharedPtr<FJsonObject>& json)
-{
-    const TSharedPtr<FJsonObject>* dataPtr = nullptr;
-    if (!json->TryGetObjectField(TEXT("data"), dataPtr) || !(dataPtr && dataPtr->IsValid()))
-    {
-        const FString warn = TEXT("CPR 回放确认: data 字段缺失或非法");
-        UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
-        onMessageUpdate.Broadcast(warn, EMessageType::Message);
-        return;
-    }
-
-    FString bizId; (*dataPtr)->TryGetStringField(TEXT("bizId"), bizId);
-    const FString info = FString::Printf(TEXT("CPR 回放确认\nbizId=%s"), *bizId);
+    const FString info = FString::Printf(TEXT("CPR 动作回放\nbizId=%s\nisFinish=%s\nisEnd=%s\nfps=%d\nframes=%d\nmotions=%s"),
+        *bizId,
+        isFinish ? TEXT("true") : TEXT("false"),
+        isEnd ? TEXT("true") : TEXT("false"),
+        fps,
+        totalFrames,
+        *motionListJson);
     UE_LOG(LogTemp, Log, TEXT("%s"), *info);
     onMessageUpdate.Broadcast(info, EMessageType::Message);
 }
+
+void UCommandResolver::OnCprAnalysis_MotionsConfirm(const TSharedPtr<FJsonObject>& json) { }
 
 // -------------------------- ZShape --------------------------
 void UCommandResolver::OnZShapeTrajectoryAnalysis(const TSharedPtr<FJsonObject>& json)
