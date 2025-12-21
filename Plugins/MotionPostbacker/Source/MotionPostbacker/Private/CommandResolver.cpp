@@ -526,7 +526,7 @@ void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObjec
 
     const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.0f\n%s"), tplFrameNo, motionFrameNo, score, *bonesSummary);
     UE_LOG(LogTemp, Log, TEXT("%s"), *result);
-    onMessageUpdate.Broadcast(result, EMessageType::Message);
+    onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
 }
 
 void UCommandResolver::OnCprAnalysis_Motions(const TSharedPtr<FJsonObject>& json)
@@ -562,7 +562,7 @@ void UCommandResolver::OnCprAnalysis_Motions(const TSharedPtr<FJsonObject>& json
         totalFrames,
         *motionListJson);
     UE_LOG(LogTemp, Log, TEXT("%s"), *info);
-    onMessageUpdate.Broadcast(info, EMessageType::Message);
+    onMessageUpdate.Broadcast(info, EMessageType::AnalysisResult);
 }
 
 void UCommandResolver::OnCprAnalysis_MotionsConfirm(const TSharedPtr<FJsonObject>& json) { }

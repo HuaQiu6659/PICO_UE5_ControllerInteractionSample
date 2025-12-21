@@ -301,6 +301,8 @@ Unreal® Engine, Copyright 1998 – 2023, Epic Games, Inc. All rights reserved.
 		<insert>
 		-keep class com.epicgames.unreal.GameActivity{*;}
         -keep class com.psmart.aosoperation.SysActivity{*;}
+        -dontwarn android.os.ServiceManager
+        -dontwarn com.pvr.**
 		</insert>
 	</proguardAdditions>
 
