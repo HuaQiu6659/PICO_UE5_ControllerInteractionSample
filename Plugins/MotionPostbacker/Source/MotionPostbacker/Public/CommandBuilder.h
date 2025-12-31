@@ -62,7 +62,7 @@ public:
 		static FString CprMotionsCommand();
 
 		/// <summary>
-		/// CPR动作数据回放请求
+		/// CPR动作数据接收确认请求
 		/// </summary>
 		/// <returns></returns>
 	UFUNCTION(BlueprintPure, Category = "CommandBuilder")
