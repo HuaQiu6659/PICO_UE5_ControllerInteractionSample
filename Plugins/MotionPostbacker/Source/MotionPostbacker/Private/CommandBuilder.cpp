@@ -32,6 +32,8 @@ FString UCommandBuilder::GlobalConfigCommand(const FString& clipperSn, const FSt
     TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&outJson);
     FJsonSerializer::Serialize(root.ToSharedRef(), Writer);
     CleanJson(outJson);
+
+	UCommandResolver::GetResolver()->globalConfig = EConfigResult::Configing;
     return outJson;
 }
 

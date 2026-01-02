@@ -1,6 +1,7 @@
-// Connector.cpp: 多线程 Socket 连接实现，提供蓝图接口与委托广播
+// Fill out your copyright notice in the Description page of Project Settings.
 
-#include "Connector.h"
+
+#include "SocketConnector.h"
 #include "Sockets.h"
 #include "SocketSubsystem.h"
 #include "HAL/Runnable.h"
@@ -17,7 +18,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogSocketConnections, Log, All);
 class FSocketWorker : public FRunnable
 {
 public:
-    FSocketWorker(AConnector* inOwner, const FString& inAddress, int32 inPort, bool inUseUdp)
+    FSocketWorker(ASocketConnector* inOwner, const FString& inAddress, int32 inPort, bool inUseUdp)
         : owner(inOwner)
         , address(inAddress)
         , port(inPort)
@@ -67,7 +68,7 @@ public:
             return false;
 
         FScopeLock scopeLock(&socketMutex);
-        if (!socket || !connected) 
+        if (!socket || !connected)
         {
             UE_LOG(LogSocketConnections, Warning, TEXT("TCP Send 失败: Socket未连接"));
             BroadcastError(TEXT("发送失败：Socket 未连接"));
@@ -84,7 +85,7 @@ public:
                 return false;
             }
             const bool ok = socket->SendTo((uint8*)converter.Get(), converter.Length(), bytesSent, *remoteAddr) && bytesSent > 0;
-            if (!ok) 
+            if (!ok)
                 BroadcastError(TEXT("UDP 发送失败"));
 
             return ok;
@@ -378,43 +379,43 @@ private:
     void BroadcastMessage(const FString& msg)
     {
         if (!owner) return;
-        TWeakObjectPtr<AConnector> weakOwner(owner);
+        TWeakObjectPtr<ASocketConnector> weakOwner(owner);
         AsyncTask(ENamedThreads::GameThread, [weakOwner, msg]
-        {
-            AConnector* o = weakOwner.Get();
-            if (!o || !IsValid(o)) return;
-            o->onMessageReceived.Broadcast(msg);
-        });
+            {
+                ASocketConnector* o = weakOwner.Get();
+                if (!o || !IsValid(o)) return;
+                o->onMessageReceived.Broadcast(msg);
+            });
     }
 
     // 在游戏线程广播状态变化
     void BroadcastState(ESocketState state)
     {
         if (!owner) return;
-        TWeakObjectPtr<AConnector> weakOwner(owner);
+        TWeakObjectPtr<ASocketConnector> weakOwner(owner);
         AsyncTask(ENamedThreads::GameThread, [weakOwner, state]
-        {
-            AConnector* o = weakOwner.Get();
-            if (!o || !IsValid(o)) return;
-            o->onConnectorStateChanged.Broadcast(state);
-        });
+            {
+                ASocketConnector* o = weakOwner.Get();
+                if (!o || !IsValid(o)) return;
+                o->onConnectorStateChanged.Broadcast(state);
+            });
     }
 
     // 在游戏线程广播错误原因
     void BroadcastError(const FString& reason)
     {
         if (!owner) return;
-        TWeakObjectPtr<AConnector> weakOwner(owner);
+        TWeakObjectPtr<ASocketConnector> weakOwner(owner);
         AsyncTask(ENamedThreads::GameThread, [weakOwner, reason]
-        {
-            AConnector* o = weakOwner.Get();
-            if (!o || !IsValid(o)) return;
-            o->onConnectorError.Broadcast(reason);
-        });
+            {
+                ASocketConnector* o = weakOwner.Get();
+                if (!o || !IsValid(o)) return;
+                o->onConnectorError.Broadcast(reason);
+            });
     }
 
 private:
-    AConnector* owner;
+    ASocketConnector* owner;
     FString address;
     int32 port;
     bool useUdp;
@@ -427,8 +428,8 @@ private:
     bool connected;
 };
 
-// ===================== AConnector =====================
-AConnector::AConnector()
+// ===================== ASocketConnector =====================
+ASocketConnector::ASocketConnector()
     : worker(nullptr)
     , thread(nullptr)
     , connectPort(0)
@@ -437,22 +438,22 @@ AConnector::AConnector()
     PrimaryActorTick.bCanEverTick = false; // 默认关闭 Tick；采用后台线程接收
 }
 
-void AConnector::BeginPlay()
+void ASocketConnector::BeginPlay()
 {
     Super::BeginPlay();
 
     // 注册应用前后台事件，适配安卓熄屏/亮屏导致的网络断开
     // UE5 的 CoreDelegates 成员以 *Delegate 结尾，需使用正确的名称
-    bgHandle = FCoreDelegates::ApplicationWillEnterBackgroundDelegate.AddUObject(this, &AConnector::OnAppBackground);
-    fgHandle = FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddUObject(this, &AConnector::OnAppForeground);
+    bgHandle = FCoreDelegates::ApplicationWillEnterBackgroundDelegate.AddUObject(this, &ASocketConnector::OnAppBackground);
+    fgHandle = FCoreDelegates::ApplicationHasEnteredForegroundDelegate.AddUObject(this, &ASocketConnector::OnAppForeground);
 }
 
-void AConnector::Tick(float DeltaTime)
+void ASocketConnector::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
 }
 
-void AConnector::TryConnectServer(const FString& address, int32 port, bool inUseUdp)
+void ASocketConnector::TryConnectServer(const FString& address, int32 port, bool inUseUdp)
 {
     // 用法：蓝图调用，设置地址/端口/协议并启动接收线程
     Stop();
@@ -468,7 +469,7 @@ void AConnector::TryConnectServer(const FString& address, int32 port, bool inUse
     thread = FRunnableThread::Create(worker, TEXT("SocketConnectionsWorker"));
 }
 
-bool AConnector::SendString(const FString& message)
+bool ASocketConnector::SendString(const FString& message)
 {
     FScopeLock scopeLock(&sendMutex);
     if (!worker)
@@ -481,7 +482,7 @@ bool AConnector::SendString(const FString& message)
     return worker->SendString(message);
 }
 
-void AConnector::Stop()
+void ASocketConnector::Stop()
 {
     // 用法：蓝图调用，停止并释放连接资源
     if (worker)
@@ -502,19 +503,19 @@ void AConnector::Stop()
     onConnectorStateChanged.Broadcast(ESocketState::Unconnect);
 }
 
-bool AConnector::IsConnected() const
+bool ASocketConnector::IsConnected() const
 {
     return worker && worker->IsConnected();
 }
 
-void AConnector::OnAppBackground()
+void ASocketConnector::OnAppBackground()
 {
     // 安卓熄屏或进入后台：主动停止连接，释放资源，避免系统挂起导致线程/Socket异常
     UE_LOG(LogSocketConnections, Log, TEXT("[SocketConnections] App goes to background, stopping connection"));
     Stop();
 }
 
-void AConnector::OnAppForeground()
+void ASocketConnector::OnAppForeground()
 {
     // 回到前台：若有历史连接参数，自动尝试重连（TCP/UDP均可）
     UE_LOG(LogSocketConnections, Log, TEXT("[SocketConnections] App returns to foreground, auto reconnect if params exist"));
@@ -523,4 +524,3 @@ void AConnector::OnAppForeground()
         TryConnectServer(connectAddress, connectPort, useUdp);
     }
 }
-

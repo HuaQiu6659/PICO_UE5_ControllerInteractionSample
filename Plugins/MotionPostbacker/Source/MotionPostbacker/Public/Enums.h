@@ -15,6 +15,17 @@ enum class EPicoType : uint8 {
 };
 
 /*
+ * 配置状态
+ */
+UENUM(BlueprintType)
+enum class EConfigResult : uint8 {
+	UnConfig,
+	Configing,
+	Successed,
+	Failed
+};
+
+/*
  * 动作分析类型
  */
 UENUM(BlueprintType)

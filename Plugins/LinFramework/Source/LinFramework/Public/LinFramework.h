@@ -2,9 +2,10 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
-class FSocketConnectionsModule : public IModuleInterface
+class FLinFrameworkModule : public IModuleInterface
 {
 public:
 

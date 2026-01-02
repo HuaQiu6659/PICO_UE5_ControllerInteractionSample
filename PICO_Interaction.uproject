@@ -44,6 +44,18 @@
 		{
 			"Name": "MotionPostbacker",
 			"Enabled": true
+		},
+		{
+			"Name": "Logger",
+			"Enabled": false
+		},
+		{
+			"Name": "SocketConnections",
+			"Enabled": false
+		},
+		{
+			"Name": "LinFramework",
+			"Enabled": true
 		}
 	],
 	"TargetPlatforms": [

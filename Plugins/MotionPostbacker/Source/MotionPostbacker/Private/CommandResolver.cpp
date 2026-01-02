@@ -213,10 +213,16 @@ void UCommandResolver::OnRescueAppConfig(const TSharedPtr<FJsonObject>& json)
     const FString msg = json->HasField(TEXT("msg")) ? json->GetStringField(TEXT("msg")) : TEXT("");
 
     FString uiText;
-    if (code == SUCCESS_CODE)
+    if (code == SUCCESS_CODE) 
+    {
         uiText = TEXT("配置成功");
+        globalConfig = EConfigResult::Successed;
+    }
     else
+    {
         uiText = FString::Printf(TEXT("配置失败, %s"), *msg);
+        globalConfig = EConfigResult::Failed;
+    }
     UE_LOG(LogTemp, Log, TEXT("%s"), *uiText);
     onMessageUpdate.Broadcast(uiText, EMessageType::Message);
 }

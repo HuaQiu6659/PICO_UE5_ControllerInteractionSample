@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "LogWriter.h"
+#include "Logger.h"
 #include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
@@ -19,37 +19,37 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 
-static ULogWriter* gInstance = nullptr;
+static ULogger* gInstance = nullptr;
 
-ULogWriter* ULogWriter::GetLogWriter()
+ULogger* ULogger::GetLogger()
 {
     if (gInstance) return gInstance;
-    gInstance = NewObject<ULogWriter>(GetTransientPackage(), ULogWriter::StaticClass());
+    gInstance = NewObject<ULogger>(GetTransientPackage(), ULogger::StaticClass());
     gInstance->AddToRoot();
     gInstance->Initialize();
     return gInstance;
 }
 
-void ULogWriter::Log(const FString& message)
+void ULogger::Log(const FString& message)
 {
     // 将所有日志写入统一文件
     EnsureFilePathInitialized(combinedFilePath);
     WriteLine(message, combinedFilePath);
 }
 
-void ULogWriter::Warning(const FString& message)
+void ULogger::Warning(const FString& message)
 {
     EnsureFilePathInitialized(combinedFilePath);
     WriteLine(message, combinedFilePath);
 }
 
-void ULogWriter::Error(const FString& message)
+void ULogger::Error(const FString& message)
 {
     EnsureFilePathInitialized(combinedFilePath);
     WriteLine(message, combinedFilePath);
 }
 
-void ULogWriter::Initialize()
+void ULogger::Initialize()
 {
     FScopeLock lock(&writeLock);
     const FString dir = FPaths::ProjectLogDir();
@@ -62,7 +62,7 @@ void ULogWriter::Initialize()
 }
 
 // 修改方法：使用数值组装日期字符串，避免格式串不生效
-FString ULogWriter::GetTodayLogFilePath() const
+FString ULogger::GetTodayLogFilePath() const
 {
     const FDateTime now = FDateTime::Now();
     const FString date = FString::Printf(TEXT("%04d%02d%02d"), now.GetYear(), now.GetMonth(), now.GetDay());
@@ -70,7 +70,7 @@ FString ULogWriter::GetTodayLogFilePath() const
     return FPaths::Combine(FPaths::ProjectLogDir(), FString::Printf(TEXT("Logs-%s.log"), *date));
 }
 
-void ULogWriter::WriteLine(const FString& content, const FString& filePath)
+void ULogger::WriteLine(const FString& content, const FString& filePath)
 {
     FScopeLock lock(&writeLock);
     const FDateTime now = FDateTime::Now();
@@ -81,30 +81,36 @@ void ULogWriter::WriteLine(const FString& content, const FString& filePath)
     FFileHelper::SaveStringToFile(line, *filePath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), EFileWrite::FILEWRITE_Append);
 }
 
-void ULogWriter::EnsureFilePathInitialized(FString& filePath)
+void ULogger::EnsureFilePathInitialized(FString& filePath)
 {
-    if (!filePath.IsEmpty()) return;
+    if (!filePath.IsEmpty())
+        return;
+
     FScopeLock lock(&writeLock);
-    if (filePath.IsEmpty()) filePath = GetTodayLogFilePath();
+    if (filePath.IsEmpty()) 
+        filePath = GetTodayLogFilePath();
 }
 
 // 设置企业微信机器人 webhook（完整 URL）
-void ULogWriter::SetWeComWebhook(const FString& webhookUrl)
+void ULogger::SetWeComWebhook(const FString& webhookUrl)
 {
     FScopeLock lock(&writeLock);
     wecomWebhook = webhookUrl;
 }
 
 // 解析 webhook 中的 key 参数
-bool ULogWriter::ParseWeComKeyFromWebhook(const FString& webhook, FString& outKey) const
+bool ULogger::ParseWeComKeyFromWebhook(const FString& webhook, FString& outKey) const
 {
     outKey.Empty();
     int32 idx;
-    if (!webhook.FindChar('?', idx)) return false;
+    if (!webhook.FindChar('?', idx))
+        return false;
     const FString query = webhook.Mid(idx + 1);
     // 查找 key=XXXX 片段
     int32 keyPos = query.Find(TEXT("key="));
-    if (keyPos == INDEX_NONE) return false;
+    if (keyPos == INDEX_NONE) 
+        return false;
+
     FString rest = query.Mid(keyPos + 4);
     int32 ampPos = rest.Find(TEXT("&"));
     outKey = ampPos == INDEX_NONE ? rest : rest.Left(ampPos);
@@ -112,7 +118,7 @@ bool ULogWriter::ParseWeComKeyFromWebhook(const FString& webhook, FString& outKe
 }
 
 // 异步将当天日志文件发送到企业微信机器人：upload_media -> send file
-void ULogWriter::SendLogFileToWeCom()
+void ULogger::SendLogFileToWeCom()
 {
     EnsureFilePathInitialized(combinedFilePath);
 
@@ -170,58 +176,58 @@ void ULogWriter::SendLogFileToWeCom()
     uploadReq->SetHeader(TEXT("Accept"), TEXT("application/json"));
     uploadReq->SetContent(body);
     uploadReq->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr req, FHttpResponsePtr resp, bool ok)
-    {
-        if (!ok || !resp.IsValid())
         {
-            UE_LOG(LogTemp, Warning, TEXT("上传日志到企业微信失败：网络或响应无效"));
-            return;
-        }
-        const FString json = resp->GetContentAsString();
-
-        // 解析 media_id
-        FString mediaId;
-        {
-            TSharedPtr<FJsonObject> obj;
-            const TSharedRef<TJsonReader<>> reader = TJsonReaderFactory<>::Create(json);
-            if (FJsonSerializer::Deserialize(reader, obj) && obj.IsValid())
+            if (!ok || !resp.IsValid())
             {
-                obj->TryGetStringField(TEXT("media_id"), mediaId);
-            }
-        }
-        if (mediaId.IsEmpty())
-        {
-            UE_LOG(LogTemp, Warning, TEXT("上传未返回 media_id，响应: %s"), *json);
-            return;
-        }
-
-        // 使用 webhook 发送文件消息
-        TSharedRef<IHttpRequest, ESPMode::ThreadSafe> sendReq = FHttpModule::Get().CreateRequest();
-        sendReq->SetURL(wecomWebhook);
-        sendReq->SetVerb(TEXT("POST"));
-        sendReq->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
-
-        // {"msgtype":"file","file":{"media_id":"..."}}
-        TSharedPtr<FJsonObject> root = MakeShared<FJsonObject>();
-        root->SetStringField(TEXT("msgtype"), TEXT("file"));
-        TSharedPtr<FJsonObject> fileObj = MakeShared<FJsonObject>();
-        fileObj->SetStringField(TEXT("media_id"), mediaId);
-        root->SetObjectField(TEXT("file"), fileObj);
-        FString payload;
-        {
-            TSharedRef<TJsonWriter<>> w = TJsonWriterFactory<>::Create(&payload);
-            FJsonSerializer::Serialize(root.ToSharedRef(), w);
-        }
-        sendReq->SetContentAsString(payload);
-        sendReq->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr r, FHttpResponsePtr s, bool o)
-        {
-            if (!o || !s.IsValid())
-            {
-                UE_LOG(LogTemp, Warning, TEXT("发送文件消息到企业微信失败"));
+                UE_LOG(LogTemp, Warning, TEXT("上传日志到企业微信失败：网络或响应无效"));
                 return;
             }
-            UE_LOG(LogTemp, Log, TEXT("发送企业微信文件消息成功，响应: %s"), *s->GetContentAsString());
+            const FString json = resp->GetContentAsString();
+
+            // 解析 media_id
+            FString mediaId;
+            {
+                TSharedPtr<FJsonObject> obj;
+                const TSharedRef<TJsonReader<>> reader = TJsonReaderFactory<>::Create(json);
+                if (FJsonSerializer::Deserialize(reader, obj) && obj.IsValid())
+                {
+                    obj->TryGetStringField(TEXT("media_id"), mediaId);
+                }
+            }
+            if (mediaId.IsEmpty())
+            {
+                UE_LOG(LogTemp, Warning, TEXT("上传未返回 media_id，响应: %s"), *json);
+                return;
+            }
+
+            // 使用 webhook 发送文件消息
+            TSharedRef<IHttpRequest, ESPMode::ThreadSafe> sendReq = FHttpModule::Get().CreateRequest();
+            sendReq->SetURL(wecomWebhook);
+            sendReq->SetVerb(TEXT("POST"));
+            sendReq->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+
+            // {"msgtype":"file","file":{"media_id":"..."}}
+            TSharedPtr<FJsonObject> root = MakeShared<FJsonObject>();
+            root->SetStringField(TEXT("msgtype"), TEXT("file"));
+            TSharedPtr<FJsonObject> fileObj = MakeShared<FJsonObject>();
+            fileObj->SetStringField(TEXT("media_id"), mediaId);
+            root->SetObjectField(TEXT("file"), fileObj);
+            FString payload;
+            {
+                TSharedRef<TJsonWriter<>> w = TJsonWriterFactory<>::Create(&payload);
+                FJsonSerializer::Serialize(root.ToSharedRef(), w);
+            }
+            sendReq->SetContentAsString(payload);
+            sendReq->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr r, FHttpResponsePtr s, bool o)
+                {
+                    if (!o || !s.IsValid())
+                    {
+                        UE_LOG(LogTemp, Warning, TEXT("发送文件消息到企业微信失败"));
+                        return;
+                    }
+                    UE_LOG(LogTemp, Log, TEXT("发送企业微信文件消息成功，响应: %s"), *s->GetContentAsString());
+                });
+            sendReq->ProcessRequest();
         });
-        sendReq->ProcessRequest();
-    });
     uploadReq->ProcessRequest();
 }

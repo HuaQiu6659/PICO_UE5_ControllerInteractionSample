@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class Logger : ModuleRules
+public class LinFramework : ModuleRules
 {
-	public Logger(ReadOnlyTargetRules Target) : base(Target)
+	public LinFramework(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -38,9 +38,11 @@ public class Logger : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
-				"HTTP",
-				"Json",
-				// ... add private dependencies that you statically link with here ... 	
+                "Sockets",
+                "Networking",
+                "HTTP",
+                "Json",
+				// ... add private dependencies that you statically link with here ...	
 			}
 			);
 		

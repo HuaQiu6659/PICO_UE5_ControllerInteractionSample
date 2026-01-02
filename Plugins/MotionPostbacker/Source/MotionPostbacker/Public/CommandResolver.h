@@ -40,10 +40,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Motion")
 		void SetAnalyzing(bool analyzing) { isAnalyzing = analyzing; }
 
+	UPROPERTY(BlueprintReadOnly, Category = "Motion")
+		EConfigResult globalConfig = EConfigResult::UnConfig;
+
 	EMotionType GetCurrentMode() { return currentMode; }
-	bool IsAnalyzing() { return isAnalyzing; }
+	UFUNCTION(BlueprintPure, Category = "Motion")
+		bool IsAnalyzing() { return isAnalyzing; }
 
 private:
+
     // 处理单条 JSON 指令（已按粘包拆分后的一个包）
     void ResolveOne(const FString& json);
     // 粘包处理缓冲区：累积未完整的包体，待下次补齐后再解析
