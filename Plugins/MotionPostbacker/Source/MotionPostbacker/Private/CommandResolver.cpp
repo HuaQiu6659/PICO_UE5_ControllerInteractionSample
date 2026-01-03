@@ -2,6 +2,7 @@
 #include "CommandResolver.h"
 #include "UObject/Package.h"
 #include "Json.h"
+#include "Serialization/JsonSerializer.h"
 #include "JsonUtilities.h"
 #include "Misc/ScopeLock.h"
 #include "Engine/Engine.h"
@@ -21,6 +22,15 @@ UCommandResolver* UCommandResolver::GetResolver()
 bool UCommandResolver::ShouldSendTrackerData()
 {
     return !currentBizId.IsEmpty() && isAnalyzing;
+}
+
+static void LogWarningJson(const TSharedPtr<FJsonObject>& JsonObject)
+{
+	if (!JsonObject.IsValid()) return;
+	FString JsonString;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&JsonString);
+	FJsonSerializer::Serialize(JsonObject.ToSharedRef(), Writer);
+	UE_LOG(LogTemp, Warning, TEXT("Warning Json Content: %s"), *JsonString);
 }
 
 // 从缓冲区中提取下一个完整的 JSON 对象（按花括号配平，忽略字符串中的括号与转义）
@@ -166,6 +176,70 @@ void UCommandResolver::Resolve(const FString& json)
         recvBuffer.Reset();
 }
 
+bool UCommandResolver::ParseTrackerDataMessage(const FString& json, TMap<FString, FTrackerData>& datas)
+{
+    TSharedPtr<FJsonObject> jsonObject;
+    TSharedRef<TJsonReader<>> reader = TJsonReaderFactory<>::Create(json);
+
+    if (FJsonSerializer::Deserialize(reader, jsonObject) && jsonObject.IsValid())
+    {
+        const TArray<TSharedPtr<FJsonValue>>* trackerListPtr;
+        if (jsonObject->TryGetArrayField(TEXT("trackerList"), trackerListPtr))
+        {
+            for (const TSharedPtr<FJsonValue>& val : *trackerListPtr)
+            {
+                const TSharedPtr<FJsonObject> itemObj = val->AsObject();
+                if (itemObj.IsValid())
+                {
+                    FTrackerData data;
+                    data.sn = itemObj->GetStringField(TEXT("sn"));
+                    data.bIsConfidence = itemObj->GetBoolField(TEXT("isConfidence"));
+
+                    // Helper lambda for Vector array [x, y, z]
+                    auto ParseVector = [](const TSharedPtr<FJsonObject>& Obj, const FString& Key) -> FVector
+                        {
+                            const TArray<TSharedPtr<FJsonValue>>* Arr;
+                            if (Obj->TryGetArrayField(Key, Arr) && Arr->Num() >= 3)
+                            {
+                                return FVector(
+                                    (*Arr)[0]->AsNumber(),
+                                    (*Arr)[1]->AsNumber(),
+                                    (*Arr)[2]->AsNumber()
+                                );
+                            }
+                            return FVector::ZeroVector;
+                        };
+
+                    // Helper lambda for Quat array [x, y, z, w]
+                    auto ParseQuat = [](const TSharedPtr<FJsonObject>& Obj, const FString& Key) -> FQuat
+                        {
+                            const TArray<TSharedPtr<FJsonValue>>* Arr;
+                            if (Obj->TryGetArrayField(Key, Arr) && Arr->Num() >= 4)
+                            {
+                                return FQuat(
+                                    (*Arr)[0]->AsNumber(),
+                                    (*Arr)[1]->AsNumber(),
+                                    (*Arr)[2]->AsNumber(),
+                                    (*Arr)[3]->AsNumber()
+                                );
+                            }
+                            return FQuat::Identity;
+                        };
+
+                    data.lt = ParseVector(itemObj, TEXT("lt"));
+                    data.gt = ParseVector(itemObj, TEXT("gt"));
+                    data.lr = ParseQuat(itemObj, TEXT("lr"));
+                    data.gr = ParseQuat(itemObj, TEXT("gr"));
+
+                    datas.Add(data.sn, data);
+                }
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
 // 处理单条 JSON 指令
 void UCommandResolver::ResolveOne(const FString& json)
 {
@@ -237,6 +311,7 @@ void UCommandResolver::OnTrajectoryAnalysis(const TSharedPtr<FJsonObject>& json)
     {
         FString result = FString::Printf(TEXT("无菌钳, %s"), *msg);
         UE_LOG(LogTemp, Warning, TEXT("%s"), *result);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(result, EMessageType::Message);
         return;
     }
@@ -247,6 +322,7 @@ void UCommandResolver::OnTrajectoryAnalysis(const TSharedPtr<FJsonObject>& json)
     {
         const FString warn = TEXT("无菌钳: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -265,6 +341,7 @@ void UCommandResolver::OnTrajectoryAnalysis(const TSharedPtr<FJsonObject>& json)
     {
         const FString warn = FString::Printf(TEXT("无菌钳, 未知子指令: %s"), *action);
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
     }
 }
@@ -276,6 +353,7 @@ void UCommandResolver::OnTrajectoryAnalysis_Begin(const TSharedPtr<FJsonObject>&
     {
         const FString warn = TEXT("无菌钳: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -306,6 +384,7 @@ void UCommandResolver::OnTrajectoryAnalysis_Result(const TSharedPtr<FJsonObject>
     {
         const FString warn = TEXT("无菌钳: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -329,18 +408,6 @@ void UCommandResolver::OnTrajectoryAnalysis_Result(const TSharedPtr<FJsonObject>
                 sphereDiameter, score);
 
             UE_LOG(LogTemp, Log, TEXT("%s"), *result);
-            //if (GEngine)
-            //{
-            //    // 在屏幕上显示分析结果 5 秒，便于用户查看
-            //    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, result);
-            //    // 同时显示对应的 JSON 字符串 5 秒
-            //    FString jsonText;
-            //    {
-            //        TSharedRef<TJsonWriter<TCHAR>> writer = TJsonWriterFactory<TCHAR>::Create(&jsonText);
-            //        FJsonSerializer::Serialize(json.ToSharedRef(), writer);
-            //    }
-            //    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Cyan, jsonText);
-            //}
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
     }
@@ -362,6 +429,7 @@ void UCommandResolver::OnCprAnalysis(const TSharedPtr<FJsonObject>& json)
     {
         const FString warn = TEXT("CPR: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -386,6 +454,7 @@ void UCommandResolver::OnCprAnalysis(const TSharedPtr<FJsonObject>& json)
         {
             const FString warn = FString::Printf(TEXT("CPR, 未知子指令: %s"), *action);
             UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+            LogWarningJson(json);
             onMessageUpdate.Broadcast(warn, EMessageType::Message);
         }
     }
@@ -393,6 +462,7 @@ void UCommandResolver::OnCprAnalysis(const TSharedPtr<FJsonObject>& json)
     {
         const FString warn = FString::Printf(TEXT("CPR: %s"), *msg);
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
     }
 }
@@ -404,6 +474,7 @@ void UCommandResolver::OnCprAnalysis_Begin(const TSharedPtr<FJsonObject>& json)
     {
         const FString warn = TEXT("CPR: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -428,6 +499,7 @@ void UCommandResolver::OnCprAnalysis_Result(const TSharedPtr<FJsonObject>& json)
     {
         const FString warn = TEXT("CPR: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -449,18 +521,6 @@ void UCommandResolver::OnCprAnalysis_Result(const TSharedPtr<FJsonObject>& json)
                 scoreNum);
 
             UE_LOG(LogTemp, Log, TEXT("%s"), *result);
-            //if (GEngine)
-            //{
-            //    // 在屏幕上显示 CPR 结果 5 秒
-            //    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, result);
-            //    // 同时显示对应的 JSON 字符串 5 秒
-            //    FString jsonText;
-            //    {
-            //        TSharedRef<TJsonWriter<TCHAR>> writer = TJsonWriterFactory<TCHAR>::Create(&jsonText);
-            //        FJsonSerializer::Serialize(json.ToSharedRef(), writer);
-            //    }
-            //    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Cyan, jsonText);
-            //}
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
     }
@@ -478,6 +538,7 @@ void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObjec
     {
         const FString warn = TEXT("CPR: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -497,6 +558,7 @@ void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObjec
     {
         const FString warn = TEXT("CPR 帧对比: comparisonResult 缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -542,6 +604,7 @@ void UCommandResolver::OnCprAnalysis_Motions(const TSharedPtr<FJsonObject>& json
     {
         const FString warn = TEXT("CPR 回放: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -584,6 +647,7 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis(const TSharedPtr<FJsonObject>&
     {
         const FString warn = TEXT("Z形轨迹: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -593,6 +657,7 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis(const TSharedPtr<FJsonObject>&
     {
         const FString result = FString::Printf(TEXT("Z形轨迹, %s"), *msg);
         UE_LOG(LogTemp, Warning, TEXT("%s"), *result);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(result, EMessageType::Message);
         return;
     }
@@ -609,6 +674,7 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis(const TSharedPtr<FJsonObject>&
     {
         const FString warn = FString::Printf(TEXT("Z形轨迹记录\n未知子指令: %s"), *action);
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
     }
 }
@@ -620,6 +686,7 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Begin(const TSharedPtr<FJsonOb
     {
         const FString warn = TEXT("Z形轨迹: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -651,6 +718,7 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Result(const TSharedPtr<FJsonO
     {
         const FString warn = TEXT("Z形轨迹: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+        LogWarningJson(json);
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
@@ -675,18 +743,6 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Result(const TSharedPtr<FJsonO
                 scoreNum);
 
             UE_LOG(LogTemp, Log, TEXT("%s"), *result);
-            //if (GEngine)
-            //{
-            //    // 在屏幕上显示 Z 形轨迹结果 5 秒
-            //    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Green, result);
-            //    // 同时显示对应的 JSON 字符串 5 秒
-            //    FString jsonText;
-            //    {
-            //        TSharedRef<TJsonWriter<TCHAR>> writer = TJsonWriterFactory<TCHAR>::Create(&jsonText);
-            //        FJsonSerializer::Serialize(json.ToSharedRef(), writer);
-            //    }
-            //    GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Cyan, jsonText);
-            //}
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
     }

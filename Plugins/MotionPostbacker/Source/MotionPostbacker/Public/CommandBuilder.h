@@ -61,10 +61,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "CommandBuilder")
 		static FString CprMotionsCommand();
 
-		/// <summary>
-		/// CPR动作数据接收确认请求
-		/// </summary>
-		/// <returns></returns>
+	/// <summary>
+	/// CPR动作数据接收确认请求
+	/// </summary>
+	/// <returns></returns>
 	UFUNCTION(BlueprintPure, Category = "CommandBuilder")
 		static FString CprMotionsConfirmCommand();
+
+	/// <summary>
+	/// 刷新json的时间戳
+	/// </summary>
+	/// <param name="json"></param>
+	/// <returns></returns>
+	UFUNCTION(BlueprintPure, Category = "CommandBuilder")
+		static FString RefreshTimeStamp(const FString& json);
+
+		
 };

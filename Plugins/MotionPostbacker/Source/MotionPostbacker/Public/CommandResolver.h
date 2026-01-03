@@ -9,6 +9,7 @@
 #include "Runtime/Json/Public/Dom/JsonObject.h"
 #include "Runtime/Core/Public/Templates/SharedPointer.h"
 #include "Enums.h"
+#include "TrackerData.h"
 #include "CommandResolver.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAnalysisStateDelegate, bool, isAnalyzing);
@@ -36,6 +37,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Motion")
 		void Resolve(const FString& json);
+
+	UFUNCTION(BlueprintPure, Category = "Motion")
+		static bool ParseTrackerDataMessage(const FString& json, TMap<FString, FTrackerData>& datas);
 
 	UFUNCTION(BlueprintCallable, Category = "Motion")
 		void SetAnalyzing(bool analyzing) { isAnalyzing = analyzing; }

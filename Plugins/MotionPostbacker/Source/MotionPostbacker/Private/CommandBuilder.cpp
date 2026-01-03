@@ -338,3 +338,23 @@ FString UCommandBuilder::CprMotionsConfirmCommand()
 	CleanJson(outJson);
 	return outJson;
 }
+
+FString UCommandBuilder::RefreshTimeStamp(const FString& json)
+{
+	TSharedPtr<FJsonObject> root;
+	TSharedRef<TJsonReader<>> reader = TJsonReaderFactory<>::Create(json);
+	if (FJsonSerializer::Deserialize(reader, root) && root.IsValid())
+	{
+		const int64 timestampMs = static_cast<int64>((FDateTime::UtcNow() - FDateTime(1970, 1, 1)).GetTotalMilliseconds());
+		root->SetNumberField(TEXT("stamp"), (double)timestampMs);
+		root->SetStringField(TEXT("bizId"), UCommandResolver::GetResolver()->GetBizId());
+
+		FString outJson;
+		TSharedRef<TJsonWriter<>> writer = TJsonWriterFactory<>::Create(&outJson);
+		FJsonSerializer::Serialize(root.ToSharedRef(), writer);
+		CleanJson(outJson);
+		return outJson;
+	}
+
+	return json;
+}

@@ -378,44 +378,50 @@ private:
     // 在游戏线程广播消息
     void BroadcastMessage(const FString& msg)
     {
-        if (!owner) return;
-        TWeakObjectPtr<ASocketConnector> weakOwner(owner);
+        if (!owner.IsValid()) return;
+        TWeakObjectPtr<ASocketConnector> weakOwner = owner;
         AsyncTask(ENamedThreads::GameThread, [weakOwner, msg]
             {
                 ASocketConnector* o = weakOwner.Get();
-                if (!o || !IsValid(o)) return;
-                o->onMessageReceived.Broadcast(msg);
+                if (IsValid(o))
+                {
+                    o->onMessageReceived.Broadcast(msg);
+                }
             });
     }
 
     // 在游戏线程广播状态变化
     void BroadcastState(ESocketState state)
     {
-        if (!owner) return;
-        TWeakObjectPtr<ASocketConnector> weakOwner(owner);
+        if (!owner.IsValid()) return;
+        TWeakObjectPtr<ASocketConnector> weakOwner = owner;
         AsyncTask(ENamedThreads::GameThread, [weakOwner, state]
             {
                 ASocketConnector* o = weakOwner.Get();
-                if (!o || !IsValid(o)) return;
-                o->onConnectorStateChanged.Broadcast(state);
+                if (IsValid(o))
+                {
+                    o->onConnectorStateChanged.Broadcast(state);
+                }
             });
     }
 
     // 在游戏线程广播错误原因
     void BroadcastError(const FString& reason)
     {
-        if (!owner) return;
-        TWeakObjectPtr<ASocketConnector> weakOwner(owner);
+        if (!owner.IsValid()) return;
+        TWeakObjectPtr<ASocketConnector> weakOwner = owner;
         AsyncTask(ENamedThreads::GameThread, [weakOwner, reason]
             {
                 ASocketConnector* o = weakOwner.Get();
-                if (!o || !IsValid(o)) return;
-                o->onConnectorError.Broadcast(reason);
+                if (IsValid(o))
+                {
+                    o->onConnectorError.Broadcast(reason);
+                }
             });
     }
 
 private:
-    ASocketConnector* owner;
+    TWeakObjectPtr<ASocketConnector> owner;
     FString address;
     int32 port;
     bool useUdp;
