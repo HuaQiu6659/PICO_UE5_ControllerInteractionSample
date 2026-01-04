@@ -15,8 +15,143 @@ UCommandResolver* UCommandResolver::GetResolver()
     {
         Instance = NewObject<UCommandResolver>(GetTransientPackage(), UCommandResolver::StaticClass());
         Instance->AddToRoot();
+        Instance->LoadDatasFromJson();
     }
     return Instance;
+}
+
+TMap<FString, FTrackerData> UCommandResolver::GetData()
+{
+    TMap<FString, FTrackerData> data;
+    if (!datasFromFile.IsEmpty())
+        datasFromFile.Dequeue(data);
+
+    datasFromFile.Enqueue(data);
+    return data;
+}
+
+void UCommandResolver::LoadDatasFromJson()
+{
+    // 获取文件路径
+    FString directory;
+#if WITH_EDITOR
+    directory = FPaths::ProjectDir(); // Editor模式下为项目根目录
+#else
+    directory = FPaths::ProjectSavedDir(); // Runtime模式下为Save目录
+#endif
+    
+    FString filePath = FPaths::Combine(directory, TEXT("datas.json"));
+
+    // 检查文件是否存在
+    if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*filePath))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("datas.json not found at path: %s"), *filePath);
+        return;
+    }
+
+    // 读取文件内容
+    FString fileContent;
+    if (!FFileHelper::LoadFileToString(fileContent, *filePath))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to load datas.json at path: %s"), *filePath);
+        return;
+    }
+
+    // 按行分割文件内容
+    TArray<FString> lines;
+    fileContent.ParseIntoArray(lines, TEXT("\n"), true);
+
+    for (const FString& line : lines)
+    {
+        FString cleanLine = line.TrimStartAndEnd();
+        if (cleanLine.IsEmpty())
+            continue;
+
+        TSharedPtr<FJsonObject> jsonObject;
+        TSharedRef<TJsonReader<>> reader = TJsonReaderFactory<>::Create(cleanLine);
+
+        if (FJsonSerializer::Deserialize(reader, jsonObject) && jsonObject.IsValid())
+        {
+            // 解析 trackerList
+            const TArray<TSharedPtr<FJsonValue>>* trackerListField;
+            if (jsonObject->TryGetArrayField(TEXT("trackerList"), trackerListField))
+            {
+                TMap<FString, FTrackerData> trackerMap;
+                for (const auto& trackerVal : *trackerListField)
+                {
+                    const TSharedPtr<FJsonObject> trackerObj = trackerVal->AsObject();
+                    if (!trackerObj.IsValid())
+                        continue;
+
+                    FTrackerData trackerData;
+                    trackerData.sn = trackerObj->GetStringField(TEXT("sn"));
+                    trackerData.bIsConfidence = trackerObj->GetBoolField(TEXT("isConfidence"));
+
+                    // 解析 gt (FVector)
+                    const TArray<TSharedPtr<FJsonValue>>* gtArray;
+                    if (trackerObj->TryGetArrayField(TEXT("gt"), gtArray) && gtArray->Num() == 3)
+                    {
+                        trackerData.gt = FVector(
+                            (*gtArray)[0]->AsNumber(),
+                            (*gtArray)[1]->AsNumber(),
+                            (*gtArray)[2]->AsNumber()
+                        );
+                    }
+
+                    // 解析 lt (FVector)
+                    const TArray<TSharedPtr<FJsonValue>>* ltArray;
+                    if (trackerObj->TryGetArrayField(TEXT("lt"), ltArray) && ltArray->Num() == 3)
+                    {
+                        trackerData.lt = FVector(
+                            (*ltArray)[0]->AsNumber(),
+                            (*ltArray)[1]->AsNumber(),
+                            (*ltArray)[2]->AsNumber()
+                        );
+                    }
+
+                    // 解析 gr (FQuat: x, y, z, w)
+                    const TArray<TSharedPtr<FJsonValue>>* grArray;
+                    if (trackerObj->TryGetArrayField(TEXT("gr"), grArray) && grArray->Num() == 4)
+                    {
+                        trackerData.gr = FQuat(
+                            (*grArray)[0]->AsNumber(),
+                            (*grArray)[1]->AsNumber(),
+                            (*grArray)[2]->AsNumber(),
+                            (*grArray)[3]->AsNumber()
+                        );
+                    }
+
+                    // 解析 lr (FQuat: x, y, z, w)
+                    const TArray<TSharedPtr<FJsonValue>>* lrArray;
+                    if (trackerObj->TryGetArrayField(TEXT("lr"), lrArray) && lrArray->Num() == 4)
+                    {
+                        trackerData.lr = FQuat(
+                            (*lrArray)[0]->AsNumber(),
+                            (*lrArray)[1]->AsNumber(),
+                            (*lrArray)[2]->AsNumber(),
+                            (*lrArray)[3]->AsNumber()
+                        );
+                    }
+
+                    if (!trackerData.sn.IsEmpty())
+                    {
+                        trackerMap.Add(trackerData.sn, trackerData);
+                    }
+                }
+
+                if (trackerMap.Num() > 0)
+                {
+                    datasFromFile.Enqueue(trackerMap);
+                }
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Failed to parse JSON line: %s"), *cleanLine);
+        }
+    }
+    
+    UE_LOG(LogTemp, Log, TEXT("Loaded %d frames from datas.json"), datasFromFile.IsEmpty() ? 0 : 1); // Queue doesn't support Num() directly, simplified log
 }
 
 bool UCommandResolver::ShouldSendTrackerData()

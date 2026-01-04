@@ -48,10 +48,19 @@ public:
 		EConfigResult globalConfig = EConfigResult::UnConfig;
 
 	EMotionType GetCurrentMode() { return currentMode; }
+
 	UFUNCTION(BlueprintPure, Category = "Motion")
 		bool IsAnalyzing() { return isAnalyzing; }
 
+	UFUNCTION(BlueprintCallable, Category = "Motion")
+		TMap<FString, FTrackerData> GetData();
+
+	UFUNCTION(BlueprintPure, Category = "Motion")
+		bool UseCacheDatas() { return !datasFromFile.IsEmpty(); }
+
 private:
+
+	void LoadDatasFromJson();
 
     // 处理单条 JSON 指令（已按粘包拆分后的一个包）
     void ResolveOne(const FString& json);
@@ -66,6 +75,9 @@ private:
 	EMotionType currentMode;
 	bool isAnalyzing;
 	FString currentBizId;
+
+	// Key: sn, Value: data
+	TQueue<TMap<FString, FTrackerData>> datasFromFile;
 
 	void OnRescueAppConfig(const TSharedPtr<FJsonObject>& json);
 
