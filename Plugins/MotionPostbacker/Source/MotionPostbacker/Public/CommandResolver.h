@@ -52,17 +52,31 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Motion")
 		bool IsAnalyzing() { return isAnalyzing; }
 
+	UFUNCTION(BlueprintPure, Category = "Motion")
+		bool HasCacheDatas() 
+		{ 
+			for (const auto& pair : cacheDatas)
+			{
+				if (pair.Value.IsValid() && !pair.Value->IsEmpty())
+					return true;
+			}
+			return false;
+		}
+
+	UFUNCTION(BlueprintPure, Category = "Motion")
+		TArray<FString> GetTrackIds() { return allCachedSns.Array(); }
+
 	UFUNCTION(BlueprintCallable, Category = "Motion")
 		TMap<FString, FTrackerData> GetData();
 
-	UFUNCTION(BlueprintPure, Category = "Motion")
-		bool UseCacheDatas() { return !datasFromFile.IsEmpty(); }
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
+		bool useCacheDatas;
 
 private:
 
-	void LoadDatasFromJson();
+	static TSharedPtr<TQueue<TMap<FString, FTrackerData>>> LoadDatasFromJson(const FString& fileName, TSet<FString>& outSns);
 
-    // 处理单条 JSON 指令（已按粘包拆分后的一个包）
+	// 处理单条 JSON 指令（已按粘包拆分后的一个包）
     void ResolveOne(const FString& json);
     // 粘包处理缓冲区：累积未完整的包体，待下次补齐后再解析
     FString recvBuffer;
@@ -75,9 +89,10 @@ private:
 	EMotionType currentMode;
 	bool isAnalyzing;
 	FString currentBizId;
+	TSet<FString> allCachedSns;
 
-	// Key: sn, Value: data
-	TQueue<TMap<FString, FTrackerData>> datasFromFile;
+	// Key: MotionType, Value: Queue of frame data
+	TMap<EMotionType, TSharedPtr<TQueue<TMap<FString, FTrackerData>>>> cacheDatas;
 
 	void OnRescueAppConfig(const TSharedPtr<FJsonObject>& json);
 

@@ -15,7 +15,16 @@ UCommandResolver* UCommandResolver::GetResolver()
     {
         Instance = NewObject<UCommandResolver>(GetTransientPackage(), UCommandResolver::StaticClass());
         Instance->AddToRoot();
-        Instance->LoadDatasFromJson();
+
+        TSet<FString> sSns;
+        auto sDatas = LoadDatasFromJson(TEXT("datas-s.json"), sSns);
+        Instance->cacheDatas.Add(EMotionType::Trajectory, sDatas);
+        Instance->cacheDatas.Add(EMotionType::Cpr, sDatas);
+        Instance->allCachedSns.Append(sSns);
+
+        TSet<FString> zSns;
+        Instance->cacheDatas.Add(EMotionType::ZShape, LoadDatasFromJson(TEXT("datas-z.json"), zSns));
+        Instance->allCachedSns.Append(zSns);
     }
     return Instance;
 }
@@ -23,15 +32,25 @@ UCommandResolver* UCommandResolver::GetResolver()
 TMap<FString, FTrackerData> UCommandResolver::GetData()
 {
     TMap<FString, FTrackerData> data;
-    if (!datasFromFile.IsEmpty())
-        datasFromFile.Dequeue(data);
 
-    datasFromFile.Enqueue(data);
+    // 根据currentMode获取数据
+    if (cacheDatas.Contains(currentMode))
+    {
+        TSharedPtr<TQueue<TMap<FString, FTrackerData>>> queue = cacheDatas[currentMode];
+        if (queue.IsValid() && !queue->IsEmpty())
+        {
+            queue->Dequeue(data);
+            // 循环播放
+            queue->Enqueue(data);
+        }
+    }
     return data;
 }
 
-void UCommandResolver::LoadDatasFromJson()
+TSharedPtr<TQueue<TMap<FString, FTrackerData>>> UCommandResolver::LoadDatasFromJson(const FString& fileName, TSet<FString>& outSns)
 {
+    TSharedPtr<TQueue<TMap<FString, FTrackerData>>> result = MakeShared<TQueue<TMap<FString, FTrackerData>>>();
+
     // 获取文件路径
     FString directory;
 #if WITH_EDITOR
@@ -40,26 +59,31 @@ void UCommandResolver::LoadDatasFromJson()
     directory = FPaths::ProjectSavedDir(); // Runtime模式下为Save目录
 #endif
     
-    FString filePath = FPaths::Combine(directory, TEXT("datas.json"));
+    FString filePath = FPaths::Combine(directory, fileName);
 
     // 检查文件是否存在
     if (!FPlatformFileManager::Get().GetPlatformFile().FileExists(*filePath))
     {
-        UE_LOG(LogTemp, Warning, TEXT("datas.json not found at path: %s"), *filePath);
-        return;
+        UE_LOG(LogTemp, Warning, TEXT("File not found at path: %s"), *filePath);
+        return result;
     }
 
     // 读取文件内容
     FString fileContent;
     if (!FFileHelper::LoadFileToString(fileContent, *filePath))
     {
-        UE_LOG(LogTemp, Error, TEXT("Failed to load datas.json at path: %s"), *filePath);
-        return;
+        UE_LOG(LogTemp, Error, TEXT("Failed to load file at path: %s"), *filePath);
+        return result;
     }
 
     // 按行分割文件内容
     TArray<FString> lines;
     fileContent.ParseIntoArray(lines, TEXT("\n"), true);
+    
+    // 按每秒60帧计算, 一行算一帧, 计算总时长并打印
+    const int32 totalFrames = lines.Num();
+    const float totalDuration = totalFrames / 60.0f;
+    UE_LOG(LogTemp, Log, TEXT("LoadDatasFromJson(%s): Total frames = %d, Duration = %.3f s (60 FPS)"), *fileName, totalFrames, totalDuration);
 
     for (const FString& line : lines)
     {
@@ -136,22 +160,17 @@ void UCommandResolver::LoadDatasFromJson()
                     if (!trackerData.sn.IsEmpty())
                     {
                         trackerMap.Add(trackerData.sn, trackerData);
+                        outSns.Add(trackerData.sn);
                     }
                 }
 
                 if (trackerMap.Num() > 0)
-                {
-                    datasFromFile.Enqueue(trackerMap);
-                }
+                    result->Enqueue(trackerMap);
             }
-        }
-        else
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Failed to parse JSON line: %s"), *cleanLine);
         }
     }
     
-    UE_LOG(LogTemp, Log, TEXT("Loaded %d frames from datas.json"), datasFromFile.IsEmpty() ? 0 : 1); // Queue doesn't support Num() directly, simplified log
+    return result;
 }
 
 bool UCommandResolver::ShouldSendTrackerData()
