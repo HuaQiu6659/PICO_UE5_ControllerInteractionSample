@@ -549,7 +549,7 @@ void UCommandResolver::OnTrajectoryAnalysis_Result(const TSharedPtr<FJsonObject>
         const TSharedPtr<FJsonObject>* summaryPtr = nullptr;
         if (data->TryGetObjectField(TEXT("summary"), summaryPtr) && summaryPtr && summaryPtr->IsValid())
         {
-            const bool is10cmFromInjurySite = (*summaryPtr)->HasField(TEXT("is10cmFromInjurySite")) ? (*summaryPtr)->GetBoolField(TEXT("is10cmFromInjurySite")) : false;
+            const bool is10cmFromInjurySite = (*summaryPtr)->HasField(TEXT("is1cmFromInjurySite")) ? (*summaryPtr)->GetBoolField(TEXT("is1cmFromInjurySite")) : false;
             const bool isSpiral = (*summaryPtr)->HasField(TEXT("isSpiral")) ? (*summaryPtr)->GetBoolField(TEXT("isSpiral")) : false;
             const bool isInOrder = (*summaryPtr)->HasField(TEXT("isInOrder")) ? (*summaryPtr)->GetBoolField(TEXT("isInOrder")) : false;
             const double sphereDiameter = (*summaryPtr)->HasField(TEXT("sphereDiameter")) ? (*summaryPtr)->GetNumberField(TEXT("sphereDiameter")) : 0.0;
