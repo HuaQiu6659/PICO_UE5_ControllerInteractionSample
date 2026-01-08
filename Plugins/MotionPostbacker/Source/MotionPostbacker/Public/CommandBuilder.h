@@ -76,5 +76,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "CommandBuilder")
 		static FString RefreshTimeStamp(const FString& json);
 
+
+	UFUNCTION(BlueprintPure, Category = "CommandBuilder")
+		static FString CprFrameComparisonCommand();
 		
 };

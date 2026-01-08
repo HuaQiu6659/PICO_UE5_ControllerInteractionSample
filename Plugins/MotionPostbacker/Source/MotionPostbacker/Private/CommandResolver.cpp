@@ -17,10 +17,11 @@ UCommandResolver* UCommandResolver::GetResolver()
         Instance->AddToRoot();
 
         TSet<FString> sSns;
-        auto sDatas = LoadDatasFromJson(TEXT("datas-s.json"), sSns);
-        Instance->cacheDatas.Add(EMotionType::Trajectory, sDatas);
-        Instance->cacheDatas.Add(EMotionType::Cpr, sDatas);
+        Instance->cacheDatas.Add(EMotionType::Trajectory, LoadDatasFromJson(TEXT("datas-s.json"), sSns));
         Instance->allCachedSns.Append(sSns);
+        
+        TSet<FString> cprSns;
+        Instance->cacheDatas.Add(EMotionType::Cpr, LoadDatasFromJson(TEXT("datas-s.json"), cprSns));
 
         TSet<FString> zSns;
         Instance->cacheDatas.Add(EMotionType::ZShape, LoadDatasFromJson(TEXT("datas-z.json"), zSns));
@@ -108,8 +109,11 @@ TSharedPtr<TQueue<TMap<FString, FTrackerData>>> UCommandResolver::LoadDatasFromJ
                         continue;
 
                     FTrackerData trackerData;
-                    trackerData.sn = trackerObj->GetStringField(TEXT("sn"));
-                    trackerData.bIsConfidence = trackerObj->GetBoolField(TEXT("isConfidence"));
+                    if (!trackerObj->TryGetStringField(TEXT("sn"), trackerData.sn))
+                    {
+                        continue;
+                    }
+                    trackerObj->TryGetBoolField(TEXT("isConfidence"), trackerData.bIsConfidence);
 
                     // 解析 gt (FVector)
                     const TArray<TSharedPtr<FJsonValue>>* gtArray;
@@ -175,7 +179,7 @@ TSharedPtr<TQueue<TMap<FString, FTrackerData>>> UCommandResolver::LoadDatasFromJ
 
 bool UCommandResolver::ShouldSendTrackerData()
 {
-    return !currentBizId.IsEmpty() && isAnalyzing;
+    return !currentBizId.IsEmpty() && isAnalyzing && currentMode != EMotionType::Cpr;
 }
 
 static void LogWarningJson(const TSharedPtr<FJsonObject>& JsonObject)
@@ -346,8 +350,11 @@ bool UCommandResolver::ParseTrackerDataMessage(const FString& json, TMap<FString
                 if (itemObj.IsValid())
                 {
                     FTrackerData data;
-                    data.sn = itemObj->GetStringField(TEXT("sn"));
-                    data.bIsConfidence = itemObj->GetBoolField(TEXT("isConfidence"));
+                    if (!itemObj->TryGetStringField(TEXT("sn"), data.sn))
+                    {
+                        continue;
+                    }
+                    itemObj->TryGetBoolField(TEXT("isConfidence"), data.bIsConfidence);
 
                     // Helper lambda for Vector array [x, y, z]
                     auto ParseVector = [](const TSharedPtr<FJsonObject>& Obj, const FString& Key) -> FVector
@@ -408,7 +415,11 @@ void UCommandResolver::ResolveOne(const FString& json)
         return;
     }
 
-    const FString cmd = jsonObject->GetStringField(TEXT("cmd"));
+    FString cmd;
+    if (!jsonObject->TryGetStringField(TEXT("cmd"), cmd))
+    {
+        return;
+    }
 
     if (cmd.Equals(TEXT("onTrajectoryAnalysis"), ESearchCase::IgnoreCase))
     {
@@ -511,21 +522,18 @@ void UCommandResolver::OnTrajectoryAnalysis_Begin(const TSharedPtr<FJsonObject>&
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
-    isAnalyzing = true;
     (*dataPtr)->TryGetStringField(TEXT("bizId"), currentBizId);
     currentMode = EMotionType::Trajectory;
     UE_LOG(LogTemp, Log, TEXT("无菌钳轨迹分析: 已开始"));
     onMessageUpdate.Broadcast(TEXT("无菌钳轨迹分析: 已开始"), EMessageType::Message);
-    onAnalysisStateChanged.Broadcast(true);
+    SetAnalyzing(true);
 }
 
 void UCommandResolver::OnTrajectoryAnalysis_Stop(const TSharedPtr<FJsonObject>& json)
 {
-    isAnalyzing = false;
     UE_LOG(LogTemp, Log, TEXT("无菌钳轨迹分析: 已停止"));
     onMessageUpdate.Broadcast(TEXT("无菌钳轨迹分析: 已停止"), EMessageType::Message);
-    isAnalyzing = false;
-    onAnalysisStateChanged.Broadcast(false);
+    SetAnalyzing(false);
 }
 
 void UCommandResolver::OnTrajectoryAnalysis_TrReport(const TSharedPtr<FJsonObject>& json)
@@ -566,8 +574,7 @@ void UCommandResolver::OnTrajectoryAnalysis_Result(const TSharedPtr<FJsonObject>
             UE_LOG(LogTemp, Log, TEXT("%s"), *result);
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
-        isAnalyzing = false;
-        onAnalysisStateChanged.Broadcast(false);
+        SetAnalyzing(false);
     }
     else
     {
@@ -582,20 +589,21 @@ void UCommandResolver::OnCprAnalysis(const TSharedPtr<FJsonObject>& json)
     int32 code = 0; FString msg;
     json->TryGetNumberField(TEXT("code"), code);
     json->TryGetStringField(TEXT("msg"), msg);
-    const TSharedPtr<FJsonObject>* dataPtr = nullptr;
-    if (!json->TryGetObjectField(TEXT("data"), dataPtr) || !(dataPtr && dataPtr->IsValid()))
-    {
-        const FString warn = TEXT("CPR: data 字段缺失或非法");
-        UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
-        LogWarningJson(json);
-        onMessageUpdate.Broadcast(warn, EMessageType::Message);
-        return;
-    }
-    FString action; 
-    (*dataPtr)->TryGetStringField(TEXT("action"), action);
 
     if (code == SUCCESS_CODE)
     {
+        const TSharedPtr<FJsonObject>* dataPtr = nullptr;
+        if (!json->TryGetObjectField(TEXT("data"), dataPtr) || !(dataPtr && dataPtr->IsValid()))
+        {
+            const FString warn = TEXT("CPR: data 字段缺失或非法");
+            UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
+            LogWarningJson(json);
+            onMessageUpdate.Broadcast(warn, EMessageType::Message);
+            return;
+        }
+        FString action; 
+        (*dataPtr)->TryGetStringField(TEXT("action"), action);
+
         if (action.Equals(TEXT("begin"), ESearchCase::IgnoreCase)) 
             OnCprAnalysis_Begin(json);
         else if (action.Equals(TEXT("stop"), ESearchCase::IgnoreCase)) 
@@ -640,14 +648,14 @@ void UCommandResolver::OnCprAnalysis_Begin(const TSharedPtr<FJsonObject>& json)
     currentMode = EMotionType::Cpr;
     UE_LOG(LogTemp, Log, TEXT("CPR 分析: 已开始"));
     onMessageUpdate.Broadcast(TEXT("CPR 分析: 已开始"), EMessageType::Message);
-    onAnalysisStateChanged.Broadcast(true);
+    SetAnalyzing(true);
 }
 
 void UCommandResolver::OnCprAnalysis_End(const TSharedPtr<FJsonObject>& json)
 {
     UE_LOG(LogTemp, Log, TEXT("CPR 分析: 已停止"));
     onMessageUpdate.Broadcast(TEXT("CPR 分析: 已停止"), EMessageType::Message);
-    onAnalysisStateChanged.Broadcast(false);
+    SetAnalyzing(false);
 }
 
 void UCommandResolver::OnCprAnalysis_Result(const TSharedPtr<FJsonObject>& json)
@@ -655,6 +663,13 @@ void UCommandResolver::OnCprAnalysis_Result(const TSharedPtr<FJsonObject>& json)
     const TSharedPtr<FJsonObject>* dataPtr = nullptr;
     if (!json->TryGetObjectField(TEXT("data"), dataPtr) || !(dataPtr && dataPtr->IsValid()))
     {
+        FString msg;
+        if (json->TryGetStringField(TEXT("msg"), msg))
+        {
+            UE_LOG(LogTemp, Warning, TEXT("%s"), *msg);
+            onMessageUpdate.Broadcast(msg, EMessageType::Message);
+            return;
+        }
         const FString warn = TEXT("CPR: data 字段缺失或非法");
         UE_LOG(LogTemp, Warning, TEXT("%s"), *warn);
         LogWarningJson(json);
@@ -682,8 +697,7 @@ void UCommandResolver::OnCprAnalysis_Result(const TSharedPtr<FJsonObject>& json)
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
 
-        isAnalyzing = false;
-        onAnalysisStateChanged.Broadcast(false);
+        SetAnalyzing(false);
     }
     else
     {
@@ -755,7 +769,7 @@ void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObjec
 
     const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.0f\n%s"), tplFrameNo, motionFrameNo, score, *bonesSummary);
     UE_LOG(LogTemp, Log, TEXT("%s"), *result);
-    onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
+    onMessageUpdate.Broadcast(result, EMessageType::CprMotionCompare);
 }
 
 void UCommandResolver::OnCprAnalysis_Motions(const TSharedPtr<FJsonObject>& json)
@@ -803,6 +817,16 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis(const TSharedPtr<FJsonObject>&
     int32 code = 0; FString msg;
     json->TryGetNumberField(TEXT("code"), code);
     json->TryGetStringField(TEXT("msg"), msg);
+
+    if (code != SUCCESS_CODE)
+    {
+        const FString result = FString::Printf(TEXT("Z形轨迹, %s"), *msg);
+        UE_LOG(LogTemp, Warning, TEXT("%s"), *result);
+        LogWarningJson(json);
+        onMessageUpdate.Broadcast(result, EMessageType::Message);
+        return;
+    }    
+    
     const TSharedPtr<FJsonObject>* dataPtr = nullptr;
     if (!json->TryGetObjectField(TEXT("data"), dataPtr) || !(dataPtr && dataPtr->IsValid()))
     {
@@ -812,16 +836,8 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis(const TSharedPtr<FJsonObject>&
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
-    FString action; (*dataPtr)->TryGetStringField(TEXT("action"), action);
-
-    if (code != SUCCESS_CODE)
-    {
-        const FString result = FString::Printf(TEXT("Z形轨迹, %s"), *msg);
-        UE_LOG(LogTemp, Warning, TEXT("%s"), *result);
-        LogWarningJson(json);
-        onMessageUpdate.Broadcast(result, EMessageType::Message);
-        return;
-    }
+    FString action; 
+    (*dataPtr)->TryGetStringField(TEXT("action"), action);
 
     if (action.Equals(TEXT("begin"), ESearchCase::IgnoreCase))
         OnZShapeTrajectoryAnalysis_Begin(json);
@@ -851,21 +867,19 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Begin(const TSharedPtr<FJsonOb
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
-    isAnalyzing = true;
     (*dataPtr)->TryGetStringField(TEXT("bizId"), currentBizId);
     currentMode = EMotionType::ZShape;
     const FString info = FString::Printf(TEXT("Z形轨迹分析: 已开始"), *currentBizId);
     UE_LOG(LogTemp, Log, TEXT("%s"), *info);
     onMessageUpdate.Broadcast(info, EMessageType::Message);
-    onAnalysisStateChanged.Broadcast(true);
+    SetAnalyzing(true);
 }
 
 void UCommandResolver::OnZShapeTrajectoryAnalysis_Stop(const TSharedPtr<FJsonObject>& json)
 {
-    isAnalyzing = false;
     UE_LOG(LogTemp, Log, TEXT("Z形轨迹记录: 已停止"));
     onMessageUpdate.Broadcast(TEXT("Z形轨迹记录: 已停止"), EMessageType::Message);
-    onAnalysisStateChanged.Broadcast(false);
+    SetAnalyzing(false);
 }
 
 void UCommandResolver::OnZShapeTrajectoryAnalysis_TrReport(const TSharedPtr<FJsonObject>& json)
@@ -907,8 +921,7 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Result(const TSharedPtr<FJsonO
             UE_LOG(LogTemp, Log, TEXT("%s"), *result);
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
-        isAnalyzing = false;
-        onAnalysisStateChanged.Broadcast(false);
+        SetAnalyzing(false);
     }
     else
     {

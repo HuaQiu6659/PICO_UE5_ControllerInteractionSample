@@ -42,7 +42,14 @@ public:
 		static bool ParseTrackerDataMessage(const FString& json, TMap<FString, FTrackerData>& datas);
 
 	UFUNCTION(BlueprintCallable, Category = "Motion")
-		void SetAnalyzing(bool analyzing) { isAnalyzing = analyzing; }
+		void SetAnalyzing(bool analyzing) 
+		{
+			if (isAnalyzing != analyzing)
+			{
+				isAnalyzing = analyzing;
+				onAnalysisStateChanged.Broadcast(analyzing);
+			}
+		}
 
 	UPROPERTY(BlueprintReadOnly, Category = "Motion")
 		EConfigResult globalConfig = EConfigResult::UnConfig;

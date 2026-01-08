@@ -42,5 +42,6 @@ UENUM(BlueprintType)
 enum class EMessageType : uint8 {
 	AnalysisResult,
 	Message,
-	Json
+	Json,
+	CprMotionCompare
 };

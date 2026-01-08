@@ -358,3 +358,46 @@ FString UCommandBuilder::RefreshTimeStamp(const FString& json)
 
 	return json;
 }
+
+FString UCommandBuilder::CprFrameComparisonCommand()
+{
+	FString outJson;
+	UCommandResolver* resolver = UCommandResolver::GetResolver();
+	FString bizId;
+	if (resolver == nullptr)
+	{
+#if WITH_EDITOR
+		bizId = FString::Printf(TEXT("EditorTest"));
+#else
+		return outJson;
+#endif
+	}
+	else
+	{
+		bizId = resolver->GetBizId();
+	}
+
+	if (bizId.IsEmpty())
+	{
+		if (resolver)
+			resolver->onMessageUpdate.Broadcast(TEXT("未开始分析(bizId为空)\n因此无法请求CPR帧对比数据"), EMessageType::Message);
+#if WITH_EDITOR
+		bizId = FString::Printf(TEXT("EditorTest"));
+#else
+		return outJson;
+#endif
+	}
+
+	TSharedPtr<FJsonObject> root = MakeShareable(new FJsonObject());
+	root->SetStringField(TEXT("cmd"), TEXT("cprAnalysis"));
+	root->SetStringField(TEXT("action"), TEXT("frameComparison"));
+	root->SetStringField(TEXT("bizId"), bizId);
+
+	const int64 timestampMs = static_cast<int64>((FDateTime::UtcNow() - FDateTime(1970, 1, 1)).GetTotalMilliseconds());
+	root->SetNumberField(TEXT("stamp"), (double)timestampMs);
+
+	TSharedRef<TJsonWriter<>> writer = TJsonWriterFactory<>::Create(&outJson);
+	FJsonSerializer::Serialize(root.ToSharedRef(), writer);
+	CleanJson(outJson);
+	return outJson;
+}
