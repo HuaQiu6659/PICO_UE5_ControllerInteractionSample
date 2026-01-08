@@ -521,8 +521,10 @@ void UCommandResolver::OnTrajectoryAnalysis_Begin(const TSharedPtr<FJsonObject>&
 
 void UCommandResolver::OnTrajectoryAnalysis_Stop(const TSharedPtr<FJsonObject>& json)
 {
+    isAnalyzing = false;
     UE_LOG(LogTemp, Log, TEXT("无菌钳轨迹分析: 已停止"));
     onMessageUpdate.Broadcast(TEXT("无菌钳轨迹分析: 已停止"), EMessageType::Message);
+    isAnalyzing = false;
     onAnalysisStateChanged.Broadcast(false);
 }
 
@@ -564,6 +566,8 @@ void UCommandResolver::OnTrajectoryAnalysis_Result(const TSharedPtr<FJsonObject>
             UE_LOG(LogTemp, Log, TEXT("%s"), *result);
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
+        isAnalyzing = false;
+        onAnalysisStateChanged.Broadcast(false);
     }
     else
     {
@@ -677,6 +681,9 @@ void UCommandResolver::OnCprAnalysis_Result(const TSharedPtr<FJsonObject>& json)
             UE_LOG(LogTemp, Log, TEXT("%s"), *result);
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
+
+        isAnalyzing = false;
+        onAnalysisStateChanged.Broadcast(false);
     }
     else
     {
@@ -855,6 +862,7 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Begin(const TSharedPtr<FJsonOb
 
 void UCommandResolver::OnZShapeTrajectoryAnalysis_Stop(const TSharedPtr<FJsonObject>& json)
 {
+    isAnalyzing = false;
     UE_LOG(LogTemp, Log, TEXT("Z形轨迹记录: 已停止"));
     onMessageUpdate.Broadcast(TEXT("Z形轨迹记录: 已停止"), EMessageType::Message);
     onAnalysisStateChanged.Broadcast(false);
@@ -899,6 +907,8 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Result(const TSharedPtr<FJsonO
             UE_LOG(LogTemp, Log, TEXT("%s"), *result);
             onMessageUpdate.Broadcast(result, EMessageType::AnalysisResult);
         }
+        isAnalyzing = false;
+        onAnalysisStateChanged.Broadcast(false);
     }
     else
     {
