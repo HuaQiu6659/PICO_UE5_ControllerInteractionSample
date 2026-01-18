@@ -73,6 +73,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Motion")
 		TArray<FString> GetTrackIds() { return allCachedSns.Array(); }
 
+	UFUNCTION(BlueprintPure, Category = "Motion")
+		FVector GetOffset() { return offsetMap[currentMode]; }
+
 	UFUNCTION(BlueprintCallable, Category = "Motion")
 		TMap<FString, FTrackerData> GetData();
 
@@ -97,6 +100,8 @@ private:
 	bool isAnalyzing;
 	FString currentBizId;
 	TSet<FString> allCachedSns;
+
+	TMap<EMotionType, FVector> offsetMap;
 
 	// Key: MotionType, Value: Queue of frame data
 	TMap<EMotionType, TSharedPtr<TQueue<TMap<FString, FTrackerData>>>> cacheDatas;

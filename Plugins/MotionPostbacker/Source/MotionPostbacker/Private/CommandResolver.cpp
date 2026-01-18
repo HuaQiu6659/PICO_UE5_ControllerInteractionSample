@@ -26,6 +26,10 @@ UCommandResolver* UCommandResolver::GetResolver()
         TSet<FString> zSns;
         Instance->cacheDatas.Add(EMotionType::ZShape, LoadDatasFromJson(TEXT("datas-z.json"), zSns));
         Instance->allCachedSns.Append(zSns);
+
+		Instance->offsetMap.Add(EMotionType::Trajectory, FVector(0.f, 0.f, 0.f));
+		Instance->offsetMap.Add(EMotionType::Cpr, FVector(0.f, 0.f, 0.f));
+		Instance->offsetMap.Add(EMotionType::ZShape, FVector(0.f, 0.f, 0.f));
     }
     return Instance;
 }
@@ -451,6 +455,34 @@ void UCommandResolver::OnRescueAppConfig(const TSharedPtr<FJsonObject>& json)
     const int32 code = json->HasField(TEXT("code")) ? (int32)json->GetNumberField(TEXT("code")) : 0;
     const FString msg = json->HasField(TEXT("msg")) ? json->GetStringField(TEXT("msg")) : TEXT("");
 
+	const TSharedPtr<FJsonObject>* dataPtr = nullptr;
+	if (json->TryGetObjectField(TEXT("data"), dataPtr) && dataPtr && dataPtr->IsValid())
+	{
+		const TSharedPtr<FJsonObject> data = *dataPtr;
+
+		const TArray<TSharedPtr<FJsonValue>>* spiralArray = nullptr;
+		if (data->TryGetArrayField(TEXT("spiralTrackerOffset"), spiralArray) && spiralArray && spiralArray->Num() == 3)
+		{
+			auto spiralTrackerOffset = FVector(
+				(float)(*spiralArray)[0]->AsNumber(),
+				(float)(*spiralArray)[1]->AsNumber(),
+				(float)(*spiralArray)[2]->AsNumber());
+
+			offsetMap[EMotionType::Trajectory] = spiralTrackerOffset;
+		}
+
+		const TArray<TSharedPtr<FJsonValue>>* zshapeArray = nullptr;
+		if (data->TryGetArrayField(TEXT("zShapeTrackerOffset"), zshapeArray) && zshapeArray && zshapeArray->Num() == 3)
+		{
+			auto zShapeTrackerOffset = FVector(
+				(float)(*zshapeArray)[0]->AsNumber(),
+				(float)(*zshapeArray)[1]->AsNumber(),
+				(float)(*zshapeArray)[2]->AsNumber());
+
+			offsetMap[EMotionType::ZShape] = zShapeTrackerOffset;
+		}
+	}
+
     FString uiText;
     if (code == SUCCESS_CODE) 
     {
@@ -522,7 +554,20 @@ void UCommandResolver::OnTrajectoryAnalysis_Begin(const TSharedPtr<FJsonObject>&
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
-    (*dataPtr)->TryGetStringField(TEXT("bizId"), currentBizId);
+    const TSharedPtr<FJsonObject> data = *dataPtr;
+    data->TryGetStringField(TEXT("bizId"), currentBizId);
+
+    const TArray<TSharedPtr<FJsonValue>>* trackerOffsetArray = nullptr;
+    if (data->TryGetArrayField(TEXT("trackerOffset"), trackerOffsetArray) && trackerOffsetArray && trackerOffsetArray->Num() == 3)
+    {
+        const FVector trackerOffset = FVector(
+            (float)(*trackerOffsetArray)[0]->AsNumber(),
+            (float)(*trackerOffsetArray)[1]->AsNumber(),
+            (float)(*trackerOffsetArray)[2]->AsNumber());
+
+        offsetMap.FindOrAdd(EMotionType::Trajectory) = trackerOffset;
+    }
+
     currentMode = EMotionType::Trajectory;
     UE_LOG(LogTemp, Log, TEXT("无菌钳轨迹分析: 已开始"));
     onMessageUpdate.Broadcast(TEXT("无菌钳轨迹分析: 已开始"), EMessageType::Message);
@@ -767,7 +812,7 @@ void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObjec
         }
     }
 
-    const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.0f\n%s"), tplFrameNo, motionFrameNo, score, *bonesSummary);
+    const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.0f\n%s"), tplFrameNo, motionFrameNo, (int)(score * 100), *bonesSummary);
     UE_LOG(LogTemp, Log, TEXT("%s"), *result);
     onMessageUpdate.Broadcast(result, EMessageType::CprMotionCompare);
 }
@@ -867,7 +912,20 @@ void UCommandResolver::OnZShapeTrajectoryAnalysis_Begin(const TSharedPtr<FJsonOb
         onMessageUpdate.Broadcast(warn, EMessageType::Message);
         return;
     }
-    (*dataPtr)->TryGetStringField(TEXT("bizId"), currentBizId);
+    const TSharedPtr<FJsonObject> data = *dataPtr;
+    data->TryGetStringField(TEXT("bizId"), currentBizId);
+
+    const TArray<TSharedPtr<FJsonValue>>* trackerOffsetArray = nullptr;
+    if (data->TryGetArrayField(TEXT("trackerOffset"), trackerOffsetArray) && trackerOffsetArray && trackerOffsetArray->Num() == 3)
+    {
+        const FVector trackerOffset = FVector(
+            (float)(*trackerOffsetArray)[0]->AsNumber(),
+            (float)(*trackerOffsetArray)[1]->AsNumber(),
+            (float)(*trackerOffsetArray)[2]->AsNumber());
+
+        offsetMap.FindOrAdd(EMotionType::ZShape) = trackerOffset;
+    }
+
     currentMode = EMotionType::ZShape;
     const FString info = FString::Printf(TEXT("Z形轨迹分析: 已开始"), *currentBizId);
     UE_LOG(LogTemp, Log, TEXT("%s"), *info);

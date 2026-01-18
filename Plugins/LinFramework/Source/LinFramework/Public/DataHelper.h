@@ -16,25 +16,25 @@ class LINFRAMEWORK_API UDataHelper : public UBlueprintFunctionLibrary
 
 public:
 
-	UFUNCTION(BlueprintCallable, Category = "LinFramework|Data")
+	UFUNCTION(BlueprintPure, Category = "LinFramework|Data")
 	static FVector VectorFromUnity(FVector vector) 
 	{
-		return FVector(vector.Z, vector.X, vector.Y);
+		return FVector(vector.Z, vector.X, vector.Y) * 100;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "LinFramework|Data")
+	UFUNCTION(BlueprintPure, Category = "LinFramework|Data")
 	static FQuat QuatFromUnity(FQuat quat) 
 	{
 		return FQuat(quat.Z, quat.X, quat.Y, quat.W);
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "LinFramework|Data")
+	UFUNCTION(BlueprintPure, Category = "LinFramework|Data")
 	static FVector VectorToUnity(FVector vector) 
 	{
-		return FVector(vector.Y, vector.Z, vector.X);
+		return FVector(vector.Y, vector.Z, vector.X) / 100;
 	}
 
-	UFUNCTION(BlueprintCallable, Category = "LinFramework|Data")
+	UFUNCTION(BlueprintPure, Category = "LinFramework|Data")
 	static FQuat QuatToUnity(FQuat quat)
 	{
 		return FQuat(quat.Y, quat.Z, quat.X, quat.W);
