@@ -786,7 +786,13 @@ void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObjec
     const TSharedPtr<FJsonObject> comp = *comparisonPtr;
     int32 tplFrameNo = 0; comp->TryGetNumberField(TEXT("tplFrameNo"), tplFrameNo);
     int32 motionFrameNo = 0; comp->TryGetNumberField(TEXT("motionFrameNo"), motionFrameNo);
-    double score = 0.0; comp->TryGetNumberField(TEXT("score"), score);
+    double score = 0.0; 
+    comp->TryGetNumberField(TEXT("score"), score);
+    // 打印json
+    FString jsonStr;
+    TSharedRef<TJsonWriter<>> writer = TJsonWriterFactory<>::Create(&jsonStr);
+    FJsonSerializer::Serialize(comp.ToSharedRef(), writer);
+    UE_LOG(LogTemp, Log, TEXT("CPR Frame Comparison Detail: %s"), *jsonStr);
 
     FString bonesSummary;
     const TArray<TSharedPtr<FJsonValue>>* bonesPtr = nullptr;
@@ -806,13 +812,13 @@ void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObjec
             double similarity = 0.0; b->TryGetNumberField(TEXT("similarity"), similarity);
             double weight = 0.0; b->TryGetNumberField(TEXT("weight"), weight);
 
-            const FString one = FString::Printf(TEXT("%s: 相似度=%.2f, 权重=%.2f"), *boneName, similarity, weight);
+            const FString one = FString::Printf(TEXT("%s: 相似度=%.2f, 权重=%.2f"), *boneName, FMath::FloorToDouble(similarity * 100.0) / 100.0, FMath::FloorToDouble(weight * 100.0) / 100.0);
             if (!bonesSummary.IsEmpty()) bonesSummary.Append(TEXT("\n"));
             bonesSummary.Append(one);
         }
     }
 
-    const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.2f\n%s"), tplFrameNo, motionFrameNo, score, *bonesSummary);
+    const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.2f\n%s"), tplFrameNo, motionFrameNo, FMath::FloorToDouble(score * 100.0) / 100.0, *bonesSummary);
     UE_LOG(LogTemp, Log, TEXT("%s"), *result);
     onMessageUpdate.Broadcast(result, EMessageType::CprMotionCompare);
 }
