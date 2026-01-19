@@ -53,7 +53,7 @@ struct FPicoUserInfo
     FString DisplayName; /*!< User's display name */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "OnlinePicoUserInfo")
-    EUserPresenceStatus UserPresenceStatus; /*!< User's current online status */ 
+    EUserPresenceStatus UserPresenceStatus = EUserPresenceStatus::Unknow; /*!< User's current online status */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "OnlinePicoUserInfo")
     FString InviteToken; /*!< User's invite token */
@@ -86,7 +86,7 @@ struct FPicoUserInfo
     FString PresenceExtra; /*!< User's extra presence info */
 
     UPROPERTY(BlueprintReadWrite, Category = "OnlinePicoUserInfo")
-    EUserGender Gender; /*!< User's presence gender */
+    EUserGender Gender = EUserGender::Unknow; /*!< User's presence gender */
 };
 
 /* ppf_LaunchType.h */
@@ -150,7 +150,7 @@ struct FLaunchDetails
     FString TrackingID; /*!< The tracking ID */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "ApplicationLifecycle")
-    ELaunchType LaunchType; /*!< The launch type */ 
+    ELaunchType LaunchType = ELaunchType::Unknown; /*!< The launch type */ 
 
 };
 
@@ -223,7 +223,7 @@ struct FPicoApplicationInvite
     FString ID; /*!< The app's invite ID */
 
     UPROPERTY(BlueprintReadWrite, Category = "Destination")
-    bool bIsActive; /*!< Whether the app invite is active */
+    bool bIsActive = false; /*!< Whether the app invite is active */
 
     UPROPERTY(BlueprintReadWrite, Category = "Destination")
     FString LobbySessionId; /*!< The lobby session ID */ 
@@ -281,28 +281,28 @@ struct FPicoOnlineSessionSettings
     GENERATED_USTRUCT_BODY()
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
-    int NumPublicConnections; /*!< The maximum number of users allowed for the session */ 
+    int NumPublicConnections = 0; /*!< The maximum number of users allowed for the session */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
-    int NumPrivateConnections; /*!< Need to be zero */ 
+    int NumPrivateConnections = 0; /*!< Need to be zero */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
-    bool bShouldAdvertise; /*!< When creating a private room, this field will affect the room's join policy. */ 
+    bool bShouldAdvertise = false; /*!< When creating a private room, this field will affect the room's join policy. */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
-    bool bAllowInvites; /*!< When creating a private room, this field will affect the room's join policy */ 
+    bool bAllowInvites = false; /*!< When creating a private room, this field will affect the room's join policy */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
-    bool bUsesPresence; /*!< When creating a private room, this field will affect the room's join policy */ 
+    bool bUsesPresence = false; /*!< When creating a private room, this field will affect the room's join policy */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
-    bool bAllowJoinViaPresence; /*!< When creating a private room, this field will affect the room's join policy */ 
+    bool bAllowJoinViaPresence = false; /*!< When creating a private room, this field will affect the room's join policy */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
-    bool bAllowJoinViaPresenceFriendsOnly; /*!< When creating a private room, this field will affect the room's join policy */ 
+    bool bAllowJoinViaPresenceFriendsOnly = false; /*!< When creating a private room, this field will affect the room's join policy */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
-    int BuildUniqueId; /*!< Will be saved in datastore with the key `PICOSESSIONBUILDUNIQUEID`. You don't need to use this field */ 
+    int BuildUniqueId = 0; /*!< Will be saved in datastore with the key `PICOSESSIONBUILDUNIQUEID`. You don't need to use this field */ 
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSettings")
     TArray<FString> KeyArray; /*!< Datastore keys. When creating a matchmaking room, you need to add the key `PICOPOOL` */ 
@@ -330,10 +330,10 @@ struct FPicoOnlineSession
     FString SessionInfoRoomID; /*!< The ID of the room of this session */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSession")
-    int32 NumOpenPrivateConnections; /*!< Zero, you don't need to use this field */
+    int32 NumOpenPrivateConnections = 0; /*!< Zero, you don't need to use this field */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSession")
-    int32 NumOpenPublicConnections; /*!< The number of people who can still enter the room */
+    int32 NumOpenPublicConnections = 0; /*!< The number of people who can still enter the room */
 };
 /// <summary>Holds the per session information for named sessions. Similar to `FNamedOnlineSession`.</summary>
 USTRUCT(BlueprintType, meta = (DisplayName = "PicoNamedOnlineSession"))
@@ -345,10 +345,10 @@ struct FPicoNamedOnlineSession
     FString SessionName; /*!< The name of the session */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoNamedOnlineSession")
-    int32 HostingPlayerNum; /*!< The number when you use `PicoSubsystem.GetIdentityInterface()` -> `GetUniquePlayerId` */
+    int32 HostingPlayerNum = 0; /*!< The number when you use `PicoSubsystem.GetIdentityInterface()` -> `GetUniquePlayerId` */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoNamedOnlineSession")
-    bool bHosting; /*!< Not used */
+    bool bHosting = false; /*!< Not used */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoNamedOnlineSession")
     FString LocalOwnerId; /*!< NetId of the local player that created this named session. */
@@ -357,7 +357,7 @@ struct FPicoNamedOnlineSession
     TArray< FString > RegisteredPlayers; /*!< The players in the room */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoNamedOnlineSession")
-    EOnlineSessionStatePicoType SessionState; /*!< State of the session */
+    EOnlineSessionStatePicoType SessionState = EOnlineSessionStatePicoType::NoSession; /*!< State of the session */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoNamedOnlineSession")
     FString OwningUserId; /*!< The ID of the session owner */
@@ -372,10 +372,10 @@ struct FPicoNamedOnlineSession
     FString SessionInfoRoomID; /*!< The ID of the room of this session */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoNamedOnlineSession")
-    int32 NumOpenPrivateConnections; /*!< Zero, you don't need to use this field */
+    int32 NumOpenPrivateConnections = 0; /*!< Zero, you don't need to use this field */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoNamedOnlineSession")
-    int32 NumOpenPublicConnections; /*!< The number of people who can still enter the room */
+    int32 NumOpenPublicConnections = 0; /*!< The number of people who can still enter the room */
 };
 /// <summary>Representation of a single search result. Similar to `FOnlineSessionSearchResult`.</summary>
 USTRUCT(BlueprintType, meta = (DisplayName = "PicoOnlineSessionSearchResult"))
@@ -387,7 +387,7 @@ struct FPicoOnlineSessionSearchResult
     FPicoOnlineSession Session; /*!< Searched room information */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSearchResult")
-    int32 PingInMs; /*!< Not used */
+    int32 PingInMs = 0; /*!< Not used */
 };
 
 /// <summary>Representation of a single search result. Similar to FOnlineSessionSearch.</summary>
@@ -400,10 +400,10 @@ struct FPicoOnlineSessionSearch
     TArray<FPicoOnlineSessionSearchResult> SearchResults; /*!< Array of all sessions found when searching by the given criteria */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSearch")
-    EOnlineAsyncTaskStatePicoType SearchState; /*!< State of the search */
+    EOnlineAsyncTaskStatePicoType SearchState = EOnlineAsyncTaskStatePicoType::NotStarted; /*!< State of the search */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSearch")
-    int32 MaxSearchResults; /*!< The number of query results will be limited by the maximum number of searches */
+    int32 MaxSearchResults = 0; /*!< The number of query results will be limited by the maximum number of searches */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSearch")
     TArray<FString> QuerySettingsKeyArray; /*!< Key for query.
@@ -415,16 +415,16 @@ struct FPicoOnlineSessionSearch
     TArray<FString> QuerySettingsValueArray; /*!< Value for query. Need to exist in pair with keys */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSearch")
-    bool bIsLanQuery; /*!< Not used */
+    bool bIsLanQuery = false; /*!< Not used */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSearch")
-    int32 PingBucketSize; /*!< Not used */
+    int32 PingBucketSize = 0; /*!< Not used */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSearch")
-    int32 PlatformHash; /*!< Not used */
+    int32 PlatformHash = 0; /*!< Not used */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineSessionSearch")
-    float TimeoutInSeconds; /*!< Not used */
+    float TimeoutInSeconds = 0.0f; /*!< Not used */
 };
 
 /// <summary>The score type used in `FOnlineLeaderboardPico`.</summary>
@@ -452,7 +452,7 @@ struct  FVariantDataPico
     GENERATED_USTRUCT_BODY()
     
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineStatsRow")
-    EPicoOnlineKeyValuePairDataType Type;
+    EPicoOnlineKeyValuePairDataType Type = EPicoOnlineKeyValuePairDataType::Empty;
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineStatsRow")
     FString Value;
@@ -468,7 +468,7 @@ struct FPicoColumnMetaData
     FString ColumnName; /*!< The name of the column */
 
     UPROPERTY(BlueprintReadWrite, Category = "FPicoColumnMetaData")
-    EPicoOnlineKeyValuePairDataType DataType; /*!< The data type of the ColumnMetadata */
+    EPicoOnlineKeyValuePairDataType DataType = EPicoOnlineKeyValuePairDataType::Empty; /*!< The data type of the ColumnMetadata */
 };
 
 /// <summary>Representation of a single row in a retrieved leaderboard. Similar to `FOnlineStatsRow`.</summary>
@@ -484,7 +484,7 @@ struct FPicoOnlineStatsRow
     FString PlayerId; /*!< Unique ID for the player in this row */
 
     UPROPERTY(BlueprintReadWrite, Category = "FPicoOnlineStatsRow")
-    int32 Rank; /*!< Player's rank in this leaderboard */
+    int32 Rank = 0; /*!< Player's rank in this leaderboard */
 
     UPROPERTY(BlueprintReadWrite, Category = "PicoOnlineStatsRow")
     TMap<FName, FVariantDataPico> Columns; /*!< All requested data on the leaderboard for this player */

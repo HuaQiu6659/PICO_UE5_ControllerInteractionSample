@@ -812,7 +812,7 @@ void UCommandResolver::OnCprAnalysis_FrameComparsion(const TSharedPtr<FJsonObjec
         }
     }
 
-    const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.0f\n%s"), tplFrameNo, motionFrameNo, (int)(score * 100), *bonesSummary);
+    const FString result = FString::Printf(TEXT("CPR 帧对比\n模板帧=%d, 动作帧=%d\n得分=%.2f\n%s"), tplFrameNo, motionFrameNo, score, *bonesSummary);
     UE_LOG(LogTemp, Log, TEXT("%s"), *result);
     onMessageUpdate.Broadcast(result, EMessageType::CprMotionCompare);
 }

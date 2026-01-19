@@ -18,13 +18,13 @@ public:
         FVector lt = FVector::ZeroVector;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tracker", meta=(DisplayName="lr"))
-        FQuat lr;
+        FQuat lr = FQuat::Identity;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tracker", meta=(DisplayName="gt"))
         FVector gt = FVector::ZeroVector;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tracker", meta=(DisplayName="gr"))
-        FQuat gr;
+        FQuat gr = FQuat::Identity;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Tracker", meta=(DisplayName="isConfidence"))
         bool bIsConfidence = false;
