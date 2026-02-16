@@ -11,7 +11,7 @@ UCommandResolver* UCommandResolver::Instance = nullptr;
 
 UCommandResolver* UCommandResolver::GetResolver()
 {
-    if (!Instance || !IsValid(Instance))
+    if (!Instance || !FInternalUObjectBaseUtilityIsValidFlagsChecker::CheckObjectValidBasedOnItsFlags(Instance))
     {
         Instance = NewObject<UCommandResolver>(GetTransientPackage(), UCommandResolver::StaticClass());
         Instance->AddToRoot();

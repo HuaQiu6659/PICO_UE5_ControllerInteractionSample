@@ -10,6 +10,7 @@
 #include "Runtime/Core/Public/Templates/SharedPointer.h"
 #include "Enums.h"
 #include "TrackerData.h"
+#include "Runtime/Core/Public/Containers/Queue.h"
 #include "CommandResolver.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FAnalysisStateDelegate, bool, isAnalyzing);
