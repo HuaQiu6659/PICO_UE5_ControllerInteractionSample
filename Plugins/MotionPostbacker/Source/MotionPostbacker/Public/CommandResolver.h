@@ -83,6 +83,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion")
 		bool useCacheDatas;
 
+	UFUNCTION(BlueprintCallable, Category = "Motion")
+		bool IsForceps(const FString& trackerId);
+
+	TMap<EPicoType, FString> picoTypeToTrackIdMap;
+
 private:
 
 	static TSharedPtr<TQueue<TMap<FString, FTrackerData>>> LoadDatasFromJson(const FString& fileName, TSet<FString>& outSns);

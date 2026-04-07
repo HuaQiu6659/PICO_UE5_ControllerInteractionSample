@@ -30,6 +30,9 @@ UCommandResolver* UCommandResolver::GetResolver()
 		Instance->offsetMap.Add(EMotionType::Trajectory, FVector(0.f, 0.f, 0.f));
 		Instance->offsetMap.Add(EMotionType::Cpr, FVector(0.f, 0.f, 0.f));
 		Instance->offsetMap.Add(EMotionType::ZShape, FVector(0.f, 0.f, 0.f));
+
+		Instance->picoTypeToTrackIdMap.Add(EPicoType::Body, FString());
+		Instance->picoTypeToTrackIdMap.Add(EPicoType::Forceps, FString());
     }
     return Instance;
 }
@@ -50,6 +53,11 @@ TMap<FString, FTrackerData> UCommandResolver::GetData()
         }
     }
     return data;
+}
+
+bool UCommandResolver::IsForceps(const FString& trackerId)
+{
+    return picoTypeToTrackIdMap[EPicoType::Forceps] == trackerId;
 }
 
 TSharedPtr<TQueue<TMap<FString, FTrackerData>>> UCommandResolver::LoadDatasFromJson(const FString& fileName, TSet<FString>& outSns)

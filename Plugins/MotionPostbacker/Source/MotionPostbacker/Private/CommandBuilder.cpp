@@ -33,7 +33,10 @@ FString UCommandBuilder::GlobalConfigCommand(const FString& clipperSn, const FSt
     FJsonSerializer::Serialize(root.ToSharedRef(), Writer);
     CleanJson(outJson);
 
-	UCommandResolver::GetResolver()->globalConfig = EConfigResult::Configing;
+	auto resolver = UCommandResolver::GetResolver();
+	resolver->globalConfig = EConfigResult::Configing;
+	resolver->picoTypeToTrackIdMap[EPicoType::Body] = dummySn;
+	resolver->picoTypeToTrackIdMap[EPicoType::Forceps] = clipperSn;
     return outJson;
 }
 
